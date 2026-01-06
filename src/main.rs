@@ -8,9 +8,9 @@ use rand::{Rng, random_bool};
 pub const X_MAX: usize      = 10;
 pub const Y_MAX: usize      = 8;
 pub const GRID_SIZE: usize  = X_MAX * Y_MAX;
-pub const HOLE_PROBABILITY: f64 = 0.0; // 0 >= n >= 1
 pub const PLAYER_NUMBER: usize = 2;
 pub const NUMBANK_SIZE:  usize = usize::div_ceil(GRID_SIZE, PLAYER_NUMBER); // ceiling division!
+pub const HOLE_PROBABILITY: f64 = 0.0; // 0 >= n >= 1
 //#endregion
 /* maybe move the above constants into the struct for the grid */
 
@@ -125,6 +125,12 @@ impl Grid {
     
     return neighbors
 
+    }
+
+    fn is_terminal(&mut self) {
+        println!("lala");
+        
+        self.takens.iter().all(|&tile| tile);
     }
 
 }
