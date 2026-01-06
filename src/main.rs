@@ -8,14 +8,14 @@ use rand::{Rng, random_bool};
 pub const X_MAX: usize      = 10;
 pub const Y_MAX: usize      = 8;
 pub const GRID_SIZE: usize  = X_MAX * Y_MAX;
-pub const HOLE_PROBABILITY: f64 = 0.1; // 0 >= n >= 1
+pub const HOLE_PROBABILITY: f64 = 0.0; // 0 >= n >= 1
 pub const PLAYER_NUMBER: usize = 2;
 pub const NUMBANK_SIZE:  usize = usize::div_ceil(GRID_SIZE, PLAYER_NUMBER); // ceiling division!
 //#endregion
 /* maybe move the above constants into the struct for the grid */
 
 fn main() {
-    println!("placeholder");
+
 }
 
 pub const fn get_x(location: usize) -> usize {
@@ -55,7 +55,7 @@ impl Grid {
     }
 
     fn add(&mut self, value: u8, owner: u8, location: usize){
-        if self.takens[location] == true {
+        if self.takens[location] {
             panic!()
         }
         self.values[location] = value;
@@ -89,34 +89,36 @@ impl Grid {
         let is_odd = (get_y(location) % 2 == 1);
         let mut neighbors: Vec<usize> = vec![];
 
-        if (location < GRID_SIZE) && self.takens[location + 1] == false {
+        if (location < GRID_SIZE) && !self.takens[location + 1] {
             neighbors.push(location + 1)}       // right neighbor
         
-        if location > 0 && self.takens[location - 1] == false {
+        if location > 0 && !self.takens[location - 1]{
             neighbors.push(location - 1)}       // left neighbor
 
-        if location + X_MAX <= GRID_SIZE && self.takens[location + X_MAX] == false {
+        if location + X_MAX <= GRID_SIZE && !self.takens[location + X_MAX] {
             neighbors.push(location + X_MAX);   // bottom neighbor (1)
         }
         
-        if location >= X_MAX && self.takens[location - X_MAX] == false {
+        if location >= X_MAX && !self.takens[location - X_MAX]  {
             neighbors.push(location - X_MAX);   // top neighbor (1)
         }
 
+
+        // maybe just add 1 if odd and subtract 1 if not, making the + or - 1 depend on is_odd
         if is_odd {
-            if location >= X_MAX - 1 && self.takens[location - X_MAX + 1] == false{
+            if location >= X_MAX - 1 && !self.takens[location - X_MAX + 1] {
                 neighbors.push(location - X_MAX + 1)
             }
-            if location >= X_MAX + 1 && self.takens[location + X_MAX + 1] == false{
+            if location >= X_MAX + 1 && !self.takens[location + X_MAX + 1] {
                 neighbors.push(location + X_MAX + 1)
             }
         }
         
         else {
-            if location >= X_MAX - 1 && self.takens[location - X_MAX - 1] == false{
+            if location >= X_MAX - 1 && !self.takens[location - X_MAX - 1] {
                 neighbors.push(location - X_MAX - 1)
             }
-            if location >= X_MAX + 1&& self.takens[location + X_MAX - 1] == false{
+            if location >= X_MAX + 1&& !self.takens[location + X_MAX - 1] {
                 neighbors.push(location + X_MAX - 1)
             }
         }
