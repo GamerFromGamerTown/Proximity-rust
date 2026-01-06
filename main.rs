@@ -59,8 +59,8 @@ impl Grid {
             panic!()
         }
 
-        self.values[location] = location
-        self.owners[location] = owner
-        self.takens[location] = true
+        self.values[location] = location;
+        self.owners[location] = owner;
+        self.takens[location] = true;
     }
 }
