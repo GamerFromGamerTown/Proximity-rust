@@ -28,9 +28,9 @@ pub const fn get_y(location: usize) -> usize {
 struct Grid{
     values: [u8; GRID_SIZE],
     owners: [u8; GRID_SIZE],
-    takens: [bool; GRID_SIZE],
+    takens: [bool; GRID_SIZE], // i'd consider using a u128 instead, but that would only fit a 
     
-    tile_num: u16,
+    tile_num: usize,
     turn: u16,
 }
 
@@ -46,6 +46,7 @@ impl Grid {
             self.takens.fill_with(|| {
                 random_bool(HOLE_PROBABILITY)
             });
+            self.tile_num = self.takens.iter().filter(|&b| *b).count();
         }
 
         else {
@@ -134,4 +135,3 @@ impl Grid {
     }
 
 }
-
