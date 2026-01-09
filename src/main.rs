@@ -3,7 +3,7 @@
 #![allow(unused)]
 // get rid of this during compile time, it's just annoying during prototyping
 
-use rand::{Rng, random_bool};
+use rand::{Rng, random_bool, SliceRandom};
 //#region
 pub const X_MAX: usize      = 10;
 pub const Y_MAX: usize      = 8;
@@ -32,6 +32,31 @@ struct Grid{
     
     tile_num: usize,
     turn: u16,
+}
+
+struct Game{
+    grid: Grid,
+    players: [Player; PLAYER_NUMBER]
+}
+
+impl Game{
+    fn get_valid_moves(&self){
+        self.grid.takens.iter().all(|&tile| !tile);
+    }
+
+    fn make_random_move(&mut self){
+        let mut rng = rng();
+        moves = self.get_valid_moves();
+        let chosen_move = moves.choose(&mut rng);
+        // implement player pls :)
+        self.grid.add(value, owner, chosen_move);
+    }
+
+    fn game_loop(&mut self){
+        while !self.grid.is_terminal(){
+            player.make_move() // implement make_move please :3
+        }
+    }
 }
 
 impl Grid {
