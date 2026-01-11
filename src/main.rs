@@ -4,7 +4,7 @@
 
 use rand::{random_bool, rng, seq::SliceRandom, prelude::IndexedRandom};
 use colored::Colorize;
-
+use std::iter::zip;
 
 //#region
 pub const X_MAX: usize      = 10;
@@ -13,7 +13,7 @@ pub const GRID_SIZE: usize  = X_MAX * Y_MAX;
 pub const PLAYER_NUMBER: usize = 2;
 pub const NUMBANK_SIZE:  usize = usize::div_ceil(GRID_SIZE, PLAYER_NUMBER); // ceiling division!
 pub const ROLL_MAX: u8 = 20;
-pub const HOLE_PROBABILITY: f64 = 0.1; // 0 >= n >= 1
+pub const HOLE_PROBABILITY: f64 = 0.0; // 0.0 >= n >= 1
 //#endregion
 /* maybe move the above constants into the struct for the grid */
 
@@ -42,16 +42,16 @@ impl Player {
 
     fn init(id: u8) -> Self {
         let mut rng = rng();
-        let mut numarray: [u8; NUMBANK_SIZE] = std::array::from_fn(|i| (i as u8 + 2) % ROLL_MAX);
+        let mut numarray: [u8; NUMBANK_SIZE] = std::array::from_fn(|i: usize| ((i as u8 + 1) % ROLL_MAX)+1);
         numarray.shuffle(&mut rng);
-        let numbank = numarray;
+        let numbank: [u8; NUMBANK_SIZE] = numarray;
         
         Self {
             id: id,
             score: 0,
             sum_of_rolls: 0,
             turn: 0,
-            numbank: numarray
+            numbank: numbank
         }
         // probably it's best to use default method, but this'll do
     }
@@ -83,42 +83,42 @@ impl Grid {
         let is_odd = (get_y(location) % 2 == 1);
         let mut neighbors: Vec<usize> = vec![];
 
-        if (location + 1 < GRID_SIZE) && ((location + 1) % X_MAX != 0) && !self.takens[location + 1] {
+        if (location + 1 < GRID_SIZE) && ((location + 1) % X_MAX != 0) && self.takens[location + 1] {
             neighbors.push(location + 1)}       // right neighbor
         
-        if (location > 0) && (location % X_MAX != 0) && !self.takens[location - 1]{
+        if (location > 0) && (location % X_MAX != 0) && self.takens[location - 1]{
             neighbors.push(location - 1)}       // left neighbor
 
-        if location + X_MAX < GRID_SIZE && !self.takens[location + X_MAX] {
+        if location + X_MAX < GRID_SIZE && self.takens[location + X_MAX] {
             neighbors.push(location + X_MAX);   // bottom neighbor (1)
         }
         
-        if location >= X_MAX && !self.takens[location - X_MAX]  {
+        if location >= X_MAX && self.takens[location - X_MAX]  {
             neighbors.push(location - X_MAX);   // top neighbor (1)
         }
 
-
         // maybe just add 1 if odd and subtract 1 if not, making the + or - 1 depend on is_odd
         if is_odd {
-            if location >= X_MAX && ((location + 1) % X_MAX != 0) && !self.takens[location - X_MAX + 1] {
+            if location >= X_MAX && ((location + 1) % X_MAX != 0) && self.takens[location - X_MAX + 1] {
                 neighbors.push(location - X_MAX + 1)
             }
-            if location + X_MAX + 1 < GRID_SIZE && ((location + 1) % X_MAX != 0) && !self.takens[location + X_MAX + 1] {
+            if location + X_MAX + 1 < GRID_SIZE && ((location + 1) % X_MAX != 0) && self.takens[location + X_MAX + 1] {
                 neighbors.push(location + X_MAX + 1)
             }
         }
         
         else {
-            if location >= X_MAX + 1 && (location % X_MAX != 0) && !self.takens[location - X_MAX - 1] {
+            if location >= X_MAX + 1 && (location % X_MAX != 0) && self.takens[location - X_MAX - 1] {
                 neighbors.push(location - X_MAX - 1)
             }
-            if location + X_MAX - 1 < GRID_SIZE && (location % X_MAX != 0) && !self.takens[location + X_MAX - 1] {
+            if location + X_MAX - 1 < GRID_SIZE && (location % X_MAX != 0) && self.takens[location + X_MAX - 1] {
                 neighbors.push(location + X_MAX - 1)
             }
         }
         
         neighbors
     }
+
 
     fn init() -> Self {
         let values = [0u8; GRID_SIZE];
@@ -159,17 +159,27 @@ impl Grid {
 
     fn update_neighbors(&mut self, value: u8, owner: u8, location: usize){
         let neighbors = self.get_neighbors(location);
-        for neighbor in neighbors{
+        
+        // for n in &neighbors{ // debug
+        //     println!("{},{} is the neighbor of {}, {}", get_x(*n), get_y(*n), get_x(location), get_y(location));
+        // }                            // debug
+        
+        // println!("{:?}", &neighbors);
+        for neighbor in neighbors {
             let neighbor_owner = self.owners[neighbor];
-            let neighbor_score = self.values[neighbor];
+            
             if neighbor_owner == 0 {continue}
             
             else if neighbor_owner == owner {
-                self.values[location] += 1;
+                self.values[neighbor] += 1;
+                // Gameplayer[neighbor_owner].score += 1
             }
 
-            else if neighbor_score < value {
-                self.owners[location] = owner;
+            else if self.values[neighbor] < value {
+                self.owners[neighbor] = owner;
+                // player[owner].score += value
+                // player[neighbor_owner].score -= value
+
             }
             
         }
@@ -193,7 +203,8 @@ impl Game {
         self.grid.owners[location] = owner;
         self.grid.takens[location] = true;
         self.grid.update_neighbors(value, owner, location);
-        self.players[(owner - 1) as usize].turn += 1;
+        self.players[(owner - 1) as usize].turn  += 1;
+        self.players[(owner - 1) as usize].score += value as usize;
         self.grid.turn += 1;
     }
 
@@ -244,6 +255,36 @@ impl Game {
         }
 
         self.display();
+
+        let scores = self.get_scores();
+        for (p, s) in zip(self.players.iter_mut(), scores){
+            p.score = s
+        }
+
+        println!("Player1:{}, Player2:{}", self.players[0].score, self.players[1].score)
+    }
+
+    fn get_scores(&self) -> [usize; PLAYER_NUMBER] {
+        let mut scores: [usize; PLAYER_NUMBER] = [0usize; PLAYER_NUMBER];
+
+        for player_number in 1..=PLAYER_NUMBER {
+            let mut pscore: usize = 0;
+            let mut len = 0; // debug
+            for (location, o) in self.grid.owners.iter().enumerate(){
+                if *o == player_number as u8 {
+                    pscore += self.grid.values[location] as usize;
+                    println!("added {} to {}", self.grid.values[location], pscore);
+                    len += 1 // debug
+                }
+            }
+            println!("{}", len); // debug
+            scores[player_number-1] = pscore;
+
+        }
+        println!("scores: {:?}", scores);
+        let sum: usize = scores.iter().sum();
+        println!("sum {:?}", sum);
+        scores
     }
 
     fn get_valid_moves(&self) -> Vec<usize>{
