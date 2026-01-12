@@ -11,6 +11,8 @@ pub const X_MAX: usize      = 10;
 pub const Y_MAX: usize      = 8;
 pub const GRID_SIZE: usize  = X_MAX * Y_MAX;
 pub const PLAYER_NUMBER: usize = 2;
+pub const PLAYER_MAX:    usize = 5;
+
 pub const NUMBANK_SIZE:  usize = usize::div_ceil(GRID_SIZE, PLAYER_NUMBER); // ceiling division!
 pub const ROLL_MAX: u8 = 20;
 pub const HOLE_PROBABILITY: f64 = 0.0; // 0.0 >= n >= 1
@@ -19,6 +21,10 @@ pub const P1MOVETYPE: u8 = 1;
 pub const P2MOVETYPE: u8 = 2;
 pub const P3MOVETYPE: u8 = 1;
 pub const P4MOVETYPE: u8 = 1;
+
+pub const COLORS: [&str; PLAYER_MAX+1] = ["white", "blue", "red", "green", "magenta", "yellow"];
+
+// const PLAYER_IDS: [u8; NUMBANK_SIZE] = std::array::from_fn(|i: usize| ((i as u8 + 1) % ROLL_MAX));
 
 // 
 
@@ -41,7 +47,6 @@ struct Player {
     id: u8,
     move_type: u8,
     score: usize,
-    sum_of_rolls: usize,
     turn: usize, // used to point at numbank, instead of having to pop numbank every time
     numbank: [u8; NUMBANK_SIZE]
 }
@@ -57,7 +62,6 @@ impl Player {
             id: id,
             move_type: move_type,
             score: 0,
-            sum_of_rolls: 0,
             turn: 0,
             numbank: numbank
         }
@@ -83,7 +87,7 @@ struct Grid {
 impl Grid {
     fn get_neighbors(&self, location: usize) -> Vec<usize>{
         // really verbose and probably not idiotomic 
-        let is_odd = (get_y(location) % 2 == 1);
+        let is_odd = get_y(location) % 2 == 1;
         let mut neighbors: Vec<usize> = vec![];
 
         if (location + 1 < GRID_SIZE) && ((location + 1) % X_MAX != 0) && self.takens[location + 1] {
@@ -176,6 +180,10 @@ impl Grid {
             } 
         }
     }
+
+    fn update_adjacency(&mut self, location: usize, add: bool){
+        self.adjacency[location] = add
+    }
 }
 
 #[derive(Clone)]
@@ -203,16 +211,16 @@ impl Game {
     // }
 
     fn display(&self) {
-        let mut board: String = String::from("");
+        let mut board: String    = String::from("");
         for idx in 0..GRID_SIZE{
             let mut tile = String::from("");
-            let padding = "  ";
-            let taken = self.grid.takens[idx];
-            let owner = self.grid.owners[idx];
-            let value = self.grid.values[idx];
-            let mut v = self.grid.values[idx].to_string();
+            let padding    = "  ";
+            let taken      = self.grid.takens[idx];
+            let owner        = self.grid.owners[idx];
+            let value        = self.grid.values[idx];
+            let mut v    = self.grid.values[idx].to_string();
 
-            let is_hole =Game::is_hole(taken, owner);
+            let is_hole    = Game::is_hole(taken, owner);
 
             if value < 10 { // 4 -> 04
                 v = "0".to_owned() + &v
@@ -226,12 +234,10 @@ impl Game {
                 }
             }
 
-            if owner > 0 {tile = v}
-            if owner == 1 {     tile = tile.blue() .to_string();}
-            else if owner == 2 {tile = tile.red()  .to_string();}
-            else if owner == 3 {tile = tile.green().to_string();}
-            else if is_hole  {  tile = " X ".to_string()}
-            else if !is_hole {  tile = " · ".to_string()}
+            tile = tile.color(COLORS[owner as usize]);
+            if owner > 0        {tile = v}
+            else if is_hole     {tile = " X ".to_string()}
+            else if !is_hole    {tile = " · ".to_string()}
 
             board.push_str(&tile);
             board.push_str(padding);
@@ -335,7 +341,6 @@ impl Game {
 
     fn make_greedy_move(&mut self, player: Player) {
         // BAD! IT TRIES TO TAKE ALREADY TAKEN TILES
-        let mut rng = rng();
         let moves: Vec::<usize>  = self.get_valid_moves();
         let mut best_move = moves[0];
 
@@ -345,9 +350,9 @@ impl Game {
                 best_move = *move_choice}
         }
         
-        for m in self.get_valid_moves().iter(){
-            println!("{},{},{}", get_x(*m as usize), get_y(*m as usize), self.grid.takens[*m])
-        }
+        // for m in self.get_valid_moves().iter(){
+        //     println!("{},{},{}", get_x(*m as usize), get_y(*m as usize), self.grid.takens[*m])
+        // }
 
         println!("Chose {},{} ({})", get_x(best_move as usize), get_y(best_move as usize), best_move);
         
