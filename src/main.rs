@@ -14,6 +14,14 @@ pub const PLAYER_NUMBER: usize = 2;
 pub const NUMBANK_SIZE:  usize = usize::div_ceil(GRID_SIZE, PLAYER_NUMBER); // ceiling division!
 pub const ROLL_MAX: u8 = 20;
 pub const HOLE_PROBABILITY: f64 = 0.0; // 0.0 >= n >= 1
+
+pub const P1MOVETYPE: u8 = 1;
+pub const P2MOVETYPE: u8 = 2;
+pub const P3MOVETYPE: u8 = 1;
+pub const P4MOVETYPE: u8 = 1;
+
+// 
+
 //#endregion
 /* maybe move the above constants into the struct for the grid */
 
@@ -21,7 +29,6 @@ fn main() {
     let mut game = Game::initialize();
     game.game_loop();
 }
-
 pub const fn get_x(location: usize) -> usize {
     location % X_MAX
 }
@@ -32,6 +39,7 @@ pub const fn get_y(location: usize) -> usize {
 #[derive(Clone, Copy)]
 struct Player {
     id: u8,
+    move_type: u8,
     score: usize,
     sum_of_rolls: usize,
     turn: usize, // used to point at numbank, instead of having to pop numbank every time
@@ -39,8 +47,7 @@ struct Player {
 }
 
 impl Player {
-
-    fn init(id: u8) -> Self {
+    fn init(id: u8, move_type: u8) -> Self {
         let mut rng = rng();
         let mut numarray: [u8; NUMBANK_SIZE] = std::array::from_fn(|i: usize| ((i as u8 + 1) % ROLL_MAX)+1);
         numarray.shuffle(&mut rng);
@@ -48,6 +55,7 @@ impl Player {
         
         Self {
             id: id,
+            move_type: move_type,
             score: 0,
             sum_of_rolls: 0,
             turn: 0,
@@ -56,16 +64,12 @@ impl Player {
         // probably it's best to use default method, but this'll do
     }
 
-    // fn copy(){
-        
-    // }
-
-    fn roll(&self) -> u8 {
+    const fn roll(&self) -> u8 {
         self.numbank[self.turn]
     }
-
 }
 
+#[derive(Clone)]
 struct Grid {
     values: [u8; GRID_SIZE],
     owners: [u8; GRID_SIZE],
@@ -76,9 +80,8 @@ struct Grid {
     turn: usize,
 }
 
-
 impl Grid {
-    fn get_neighbors(&mut self, location: usize) -> Vec<usize>{
+    fn get_neighbors(&self, location: usize) -> Vec<usize>{
         // really verbose and probably not idiotomic 
         let is_odd = (get_y(location) % 2 == 1);
         let mut neighbors: Vec<usize> = vec![];
@@ -115,10 +118,9 @@ impl Grid {
                 neighbors.push(location + X_MAX - 1)
             }
         }
-        
+
         neighbors
     }
-
 
     fn init() -> Self {
         let values = [0u8; GRID_SIZE];
@@ -140,7 +142,6 @@ impl Grid {
 
         let adj = [false; GRID_SIZE];
 
-
         Self {
             values: values,
             owners: owners,
@@ -148,30 +149,23 @@ impl Grid {
             adjacency: adj,
             turn  : turn,
         }
-
-
-        
     }
 
     fn is_terminal(&mut self) -> bool {
         self.takens.iter().all(|&tile| tile)
     }
 
-    fn update_neighbors(&mut self, value: u8, owner: u8, location: usize){
+    fn update_neighbors(&mut self, value: u8, owner: u8, location: usize) {
         let neighbors = self.get_neighbors(location);
-        
-        // for n in &neighbors{ // debug
-        //     println!("{},{} is the neighbor of {}, {}", get_x(*n), get_y(*n), get_x(location), get_y(location));
-        // }                            // debug
-        
-        // println!("{:?}", &neighbors);
+
         for neighbor in neighbors {
             let neighbor_owner = self.owners[neighbor];
-            
+    
             if neighbor_owner == 0 {continue}
             
             else if neighbor_owner == owner {
                 self.values[neighbor] += 1;
+                
                 // Gameplayer[neighbor_owner].score += 1
             }
 
@@ -179,22 +173,18 @@ impl Grid {
                 self.owners[neighbor] = owner;
                 // player[owner].score += value
                 // player[neighbor_owner].score -= value
-
-            }
-            
+            } 
         }
-
     }
-
 }
 
+#[derive(Clone)]
 struct Game {
     grid: Grid,
     players: [Player; PLAYER_NUMBER]
 }
 
 impl Game {
-
     fn add(&mut self, value: u8, owner: u8, location: usize){
         if self.grid.takens[location] {
             panic!("AAAHHHH")
@@ -208,8 +198,11 @@ impl Game {
         self.grid.turn += 1;
     }
 
+    // fn clone(&self) -> Self {
+    //     self
+    // }
+
     fn display(&self) {
-        
         let mut board: String = String::from("");
         for idx in 0..GRID_SIZE{
             let mut tile = String::from("");
@@ -250,7 +243,7 @@ impl Game {
         while !self.grid.is_terminal() {
             for p in self.players.into_iter() { // ISSUE--even if game is not terminal, it can be in the next 2 moves, 
                 if !self.grid.is_terminal(){            // which is not accounted for in the for loop. I added a secondary check,
-                self.make_random_move(p)}       // but it is superfluous and should be replaced later
+                self.make_move(p)}              // but it is superfluous and should be replaced later
             }
         }
 
@@ -269,21 +262,14 @@ impl Game {
 
         for player_number in 1..=PLAYER_NUMBER {
             let mut pscore: usize = 0;
-            let mut len = 0; // debug
             for (location, o) in self.grid.owners.iter().enumerate(){
                 if *o == player_number as u8 {
                     pscore += self.grid.values[location] as usize;
-                    println!("added {} to {}", self.grid.values[location], pscore);
-                    len += 1 // debug
                 }
             }
-            println!("{}", len); // debug
             scores[player_number-1] = pscore;
 
         }
-        println!("scores: {:?}", scores);
-        let sum: usize = scores.iter().sum();
-        println!("sum {:?}", sum);
         scores
     }
 
@@ -300,16 +286,10 @@ impl Game {
     }
 
     fn initialize() -> Self {
-        // Grid::init();
-        
-        // for (number, player) in self.players.iter_mut().enumerate(){
-        //     player.init(number as u8)
-        // };
-
         Self {
             grid: Grid::init(),
-            // FIXME
-            players: [Player::init(1), Player::init(2)], // halfassed temporary solution
+            // FIXME 
+            players: [Player::init(1, P1MOVETYPE), Player::init(2, P2MOVETYPE)], // halfassed temporary solution
             // TODO
         }
     }
@@ -318,13 +298,60 @@ impl Game {
         taken && owner == 0
     }
 
-    fn make_random_move(&mut self, player: Player){
-        // let player: Player = &mut self.players[p]; 
+    fn make_move(&mut self, player: Player){
+        if player.move_type == 0 {      panic!("Add make_human_move.") }
+        else if player.move_type == 1 { self.make_random_move(player); }
+        else if player.move_type == 2 { self.make_greedy_move(player)}
+    }
+
+    fn make_random_move(&mut self, player: Player) {
         let mut rng = rng();
         let moves: Vec::<usize>  = self.get_valid_moves();
         let chosen_move: usize = *moves.choose(&mut rng).expect("Game is not terminal.");
         
         self.add(player.roll(), player.id, chosen_move);
+        self.display();
+    }
+
+    fn get_score_from_move(&self, location: usize, owner: u8, value: u8) -> u8 {
+        let neighbors = &self.grid.get_neighbors(location);
+        let mut score: u8 = 0;
+
+        for neighbor in neighbors {
+            let neighbor_owner = self.grid.owners[*neighbor];
+    
+            if neighbor_owner == 0 {continue}
+            
+            else if neighbor_owner == owner {
+                score += 1
+            }
+
+            else if self.grid.values[*neighbor] < value {
+                score += value
+            } 
+        }
+        score
+    }
+
+    fn make_greedy_move(&mut self, player: Player) {
+        // BAD! IT TRIES TO TAKE ALREADY TAKEN TILES
+        let mut rng = rng();
+        let moves: Vec::<usize>  = self.get_valid_moves();
+        let mut best_move = moves[0];
+
+        for move_choice in moves.iter(){
+            let current_score = self.get_score_from_move(*move_choice, player.id, player.roll());
+            if current_score > best_move as u8 {
+                best_move = *move_choice}
+        }
+        
+        for m in self.get_valid_moves().iter(){
+            println!("{},{},{}", get_x(*m as usize), get_y(*m as usize), self.grid.takens[*m])
+        }
+
+        println!("Chose {},{} ({})", get_x(best_move as usize), get_y(best_move as usize), best_move);
+        
+        self.add(player.roll(), player.id, best_move as usize);
         self.display();
     }
 
