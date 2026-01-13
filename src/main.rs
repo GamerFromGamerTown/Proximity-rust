@@ -3,7 +3,7 @@
 // get rid of this during compile time, it's just annoying during prototyping
 
 use rand::{random_bool, rng, seq::SliceRandom, prelude::IndexedRandom};
-use colored::Colorize;
+use colored::{ColoredString, Colorize};
 use std::iter::zip;
 
 //#region
@@ -17,23 +17,35 @@ pub const NUMBANK_SIZE:  usize = usize::div_ceil(GRID_SIZE, PLAYER_NUMBER); // c
 pub const ROLL_MAX: u8 = 20;
 pub const HOLE_PROBABILITY: f64 = 0.0; // 0.0 >= n >= 1
 
-pub const P1MOVETYPE: u8 = 1;
+pub const P1MOVETYPE: u8 = 2;
 pub const P2MOVETYPE: u8 = 2;
 pub const P3MOVETYPE: u8 = 1;
 pub const P4MOVETYPE: u8 = 1;
 
-pub const COLORS: [&str; PLAYER_MAX+1] = ["white", "blue", "red", "green", "magenta", "yellow"];
+pub const COLORS:      [&str; PLAYER_MAX+1] = ["white", "blue", "red", "green", "magenta", "yellow"];
+pub const COLOR_CODES: [&str; PLAYER_MAX+1] = ["err",   "B",    "R",   "G",     "P",       "Y"];
 
-// const PLAYER_IDS: [u8; NUMBANK_SIZE] = std::array::from_fn(|i: usize| ((i as u8 + 1) % ROLL_MAX));
 
-// 
+/*
+Jan 12: 7600 simulations / second 
+RUSTFLAGS="-C target-cpu=native" cargo build --release
+*/ 
 
 //#endregion
 /* maybe move the above constants into the struct for the grid */
 
 fn main() {
-    let mut game = Game::initialize();
-    game.game_loop();
+    let mut it = 0;
+    loop {
+        it += 1;
+        if it % 50 == 0 {print!("{}", it);}
+        let mut game = Game::initialize();
+        game.game_loop();
+        if it == 10000 {break}
+    }
+    let game = Game::initialize();
+    game.display()
+
 }
 pub const fn get_x(location: usize) -> usize {
     location % X_MAX
@@ -79,14 +91,13 @@ struct Grid {
     owners: [u8; GRID_SIZE],
     takens: [bool; GRID_SIZE],
     adjacency: [bool; GRID_SIZE],
-
-    // tile_count: usize,
     turn: usize,
 }
 
 impl Grid {
     fn get_neighbors(&self, location: usize) -> Vec<usize>{
         // really verbose and probably not idiotomic 
+        // STOP RETURNING VEC, return array or iterator!
         let is_odd = get_y(location) % 2 == 1;
         let mut neighbors: Vec<usize> = vec![];
 
@@ -134,7 +145,7 @@ impl Grid {
         let mut takens: [bool; GRID_SIZE];
         
         if HOLE_PROBABILITY > 0.0 {
-            takens = [false; GRID_SIZE]; // consider switching vec to arc[<t>]; look into it at least
+            takens = [false; GRID_SIZE];
             takens.fill_with(|| {
                 random_bool(HOLE_PROBABILITY)
             });
@@ -197,6 +208,7 @@ impl Game {
         if self.grid.takens[location] {
             panic!("AAAHHHH")
         }
+
         self.grid.values[location] = value;
         self.grid.owners[location] = owner;
         self.grid.takens[location] = true;
@@ -213,7 +225,7 @@ impl Game {
     fn display(&self) {
         let mut board: String    = String::from("");
         for idx in 0..GRID_SIZE{
-            let mut tile = String::from("");
+            let mut tile = ColoredString::from("");
             let padding    = "  ";
             let taken      = self.grid.takens[idx];
             let owner        = self.grid.owners[idx];
@@ -233,14 +245,14 @@ impl Game {
                     board.push_str(padding)
                 }
             }
+            
+            if owner > 0        {tile = Into::into(v)}
+            else if is_hole     {tile = Into::into(" X ")}
+            else if !is_hole    {tile = Into::into(" · ")}
 
             tile = tile.color(COLORS[owner as usize]);
-            if owner > 0        {tile = v}
-            else if is_hole     {tile = " X ".to_string()}
-            else if !is_hole    {tile = " · ".to_string()}
-
-            board.push_str(&tile);
-            board.push_str(padding);
+            board.push_str(&tile.to_string());
+            board.push_str(&padding.to_string());
         }
         println!("{}", board)
     }
@@ -253,7 +265,7 @@ impl Game {
             }
         }
 
-        self.display();
+        // self.display();
 
         let scores = self.get_scores();
         for (p, s) in zip(self.players.iter_mut(), scores){
@@ -263,32 +275,43 @@ impl Game {
         println!("Player1:{}, Player2:{}", self.players[0].score, self.players[1].score)
     }
 
-    fn get_scores(&self) -> [usize; PLAYER_NUMBER] {
-        let mut scores: [usize; PLAYER_NUMBER] = [0usize; PLAYER_NUMBER];
+        fn get_scores(&self) -> [usize; PLAYER_NUMBER] {
+            let mut scores: [usize; PLAYER_NUMBER] = [0usize; PLAYER_NUMBER];
 
-        for player_number in 1..=PLAYER_NUMBER {
-            let mut pscore: usize = 0;
-            for (location, o) in self.grid.owners.iter().enumerate(){
-                if *o == player_number as u8 {
-                    pscore += self.grid.values[location] as usize;
+            for player_number in 1..=PLAYER_NUMBER {
+                let mut pscore: usize = 0;
+                for (location, o) in self.grid.owners.iter().enumerate(){
+                    if *o == player_number as u8 {
+                        pscore += self.grid.values[location] as usize;
+                    }
                 }
-            }
-            scores[player_number-1] = pscore;
+                scores[player_number-1] = pscore;
+            } scores
 
-        }
-        scores
+            /*
+            We need to:
+                Approach 1
+                First, get an iter of self.grid.owners
+                Then, enumerate
+                Then, split it into a list of vecs with each owner, and only care about locations
+                Then, get the values of all of these locations, in the same vec.
+                Then, get the sum of each of these vecs.
+                Finally, return.*/
+            // self.grid.values
+            // .iter()
+            // .enumerate()
+            // .zip()
+
+
     }
 
     fn get_valid_moves(&self) -> Vec<usize>{
-        // self.grid.takens.iter()
-        // .filter(|&tile| !tile);
-        let mut valid_moves: Vec<usize> = Vec::with_capacity(GRID_SIZE);
-        for (idx, tile) in self.grid.takens.iter().enumerate(){
-            if *tile == false {
-                valid_moves.push(idx); 
-            }
-        }
-        valid_moves
+        self.grid.takens
+        .iter()
+        .enumerate()
+        .filter(|(idx, tile)| !**tile) // only include true tiles
+        .map(|(idx, _)| idx)                     // ignore the tile bool itself
+        .collect()                                                                 // return the array of indices
     }
 
     fn initialize() -> Self {
@@ -316,7 +339,7 @@ impl Game {
         let chosen_move: usize = *moves.choose(&mut rng).expect("Game is not terminal.");
         
         self.add(player.roll(), player.id, chosen_move);
-        self.display();
+        // self.display();
     }
 
     fn get_score_from_move(&self, location: usize, owner: u8, value: u8) -> u8 {
@@ -340,7 +363,6 @@ impl Game {
     }
 
     fn make_greedy_move(&mut self, player: Player) {
-        // BAD! IT TRIES TO TAKE ALREADY TAKEN TILES
         let moves: Vec::<usize>  = self.get_valid_moves();
         let mut best_move = moves[0];
 
@@ -350,14 +372,11 @@ impl Game {
                 best_move = *move_choice}
         }
         
-        // for m in self.get_valid_moves().iter(){
-        //     println!("{},{},{}", get_x(*m as usize), get_y(*m as usize), self.grid.takens[*m])
-        // }
 
-        println!("Chose {},{} ({})", get_x(best_move as usize), get_y(best_move as usize), best_move);
+        // println!("Chose {},{} ({})", get_x(best_move as usize), get_y(best_move as usize), best_move);
         
         self.add(player.roll(), player.id, best_move as usize);
-        self.display();
+        // self.display();
     }
 
 }
