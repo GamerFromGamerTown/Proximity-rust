@@ -5,6 +5,8 @@
 use rand::{random_bool, rng, seq::SliceRandom, prelude::IndexedRandom};
 use colored::{ColoredString, Colorize};
 use std::{iter::zip};
+// use rayon::prelude::*;
+
 
 //#region
 pub const X_MAX: usize      = 10;
@@ -55,19 +57,19 @@ RUSTFLAGS="-C target-cpu=native" cargo build --release
 
 //#endregion
 
+use std::time::Instant;
 fn main() {
-    let mut it = 0;
+    let mut it: u32 = 0;
+    let start = Instant::now();
     loop {
         it += 1;
-        if it % 50 == 0 {print!("{}", it);}
+        if it % 500 == 0 {print!("{} \n", it);}
         let mut game = Game::initialize();
         game.game_loop();
-        if it == 10000 {break}
+        if it == 1000000 {break}
     }
-    let game = Game::initialize();
-    game.display()
-
 }
+
 pub const fn get_x(location: usize) -> usize {
     location % X_MAX
 }
@@ -140,7 +142,7 @@ impl Grid {
             takens.fill_with(|| {
                 random_bool(HOLE_PROBABILITY)
             });
-        }
+        } // consider pregeneration
 
         else {
             takens  = [false; GRID_SIZE];
@@ -263,7 +265,7 @@ impl Game {
             p.score = s
         }
 
-        println!("Player1:{}, Player2:{}", self.players[0].score, self.players[1].score)
+        // println!("Player1:{}, Player2:{}", self.players[0].score, self.players[1].score)
     }
 
         fn get_scores(&self) -> [usize; PLAYER_NUMBER] {
@@ -369,5 +371,9 @@ impl Game {
         self.add(player.roll(), player.id, best_move as usize);
         // self.display();
     }
+    
+    fn run_single_rollout(&mut self, player: Player){}
+    fn evaluate(&mut self, player: Player){}
+    fn make_monte_carlo_flat_move(&mut self, player: Player){}
 
 }
