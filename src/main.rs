@@ -4,12 +4,14 @@
 
 use rand::{random_bool, rng, seq::SliceRandom, prelude::IndexedRandom};
 use colored::{ColoredString, Colorize};
-use std::iter::zip;
+use std::{iter::zip};
 
 //#region
 pub const X_MAX: usize      = 10;
 pub const Y_MAX: usize      = 8;
 pub const GRID_SIZE: usize  = X_MAX * Y_MAX;
+pub const GRID_ISIZE: isize = GRID_SIZE as isize;
+
 pub const PLAYER_NUMBER: usize = 2;
 pub const PLAYER_MAX:    usize = 5;
 
@@ -26,13 +28,32 @@ pub const COLORS:      [&str; PLAYER_MAX+1] = ["white", "blue", "red", "green", 
 pub const COLOR_CODES: [&str; PLAYER_MAX+1] = ["err",   "B",    "R",   "G",     "P",       "Y"];
 
 
+// in an odd-r grid, these are the offsets away from a tile
+pub const EVEN_OFFSETS: [isize; 6] = [
+    1,                         // Right
+    -1,                        // Left
+    X_MAX as isize,            // Bottom
+    -(X_MAX as isize),         // Top
+    (X_MAX as isize) - 1,      // Bottom-Left
+    -(X_MAX as isize) - 1,     // Top-Left
+];
+
+pub const ODD_OFFSETS: [isize; 6] = [
+    1,                         // Right
+    -1,                        // Left
+    X_MAX as isize,            // Bottom
+    -(X_MAX as isize),         // Top
+    (X_MAX as isize) + 1,      // Bottom-Right
+    -(X_MAX as isize) + 1,     // Top-Right
+];
+
 /*
 Jan 12: 7600 simulations / second 
+Jan 14: 9500 simulations / second
 RUSTFLAGS="-C target-cpu=native" cargo build --release
 */ 
 
 //#endregion
-/* maybe move the above constants into the struct for the grid */
 
 fn main() {
     let mut it = 0;
@@ -95,47 +116,17 @@ struct Grid {
 }
 
 impl Grid {
-    fn get_neighbors(&self, location: usize) -> Vec<usize>{
-        // really verbose and probably not idiotomic 
-        // STOP RETURNING VEC, return array or iterator!
+    pub fn get_neighbors(location: usize) -> impl Iterator<Item = usize> {
+        let loc = location as isize;
         let is_odd = get_y(location) % 2 == 1;
-        let mut neighbors: Vec<usize> = vec![];
-
-        if (location + 1 < GRID_SIZE) && ((location + 1) % X_MAX != 0) && self.takens[location + 1] {
-            neighbors.push(location + 1)}       // right neighbor
+        let offsets: [isize; 6] = if is_odd {ODD_OFFSETS} else {EVEN_OFFSETS};
         
-        if (location > 0) && (location % X_MAX != 0) && self.takens[location - 1]{
-            neighbors.push(location - 1)}       // left neighbor
-
-        if location + X_MAX < GRID_SIZE && self.takens[location + X_MAX] {
-            neighbors.push(location + X_MAX);   // bottom neighbor (1)
-        }
-        
-        if location >= X_MAX && self.takens[location - X_MAX]  {
-            neighbors.push(location - X_MAX);   // top neighbor (1)
-        }
-
-        // maybe just add 1 if odd and subtract 1 if not, making the + or - 1 depend on is_odd
-        if is_odd {
-            if location >= X_MAX && ((location + 1) % X_MAX != 0) && self.takens[location - X_MAX + 1] {
-                neighbors.push(location - X_MAX + 1)
-            }
-            if location + X_MAX + 1 < GRID_SIZE && ((location + 1) % X_MAX != 0) && self.takens[location + X_MAX + 1] {
-                neighbors.push(location + X_MAX + 1)
-            }
-        }
-        
-        else {
-            if location >= X_MAX + 1 && (location % X_MAX != 0) && self.takens[location - X_MAX - 1] {
-                neighbors.push(location - X_MAX - 1)
-            }
-            if location + X_MAX - 1 < GRID_SIZE && (location % X_MAX != 0) && self.takens[location + X_MAX - 1] {
-                neighbors.push(location + X_MAX - 1)
-            }
-        }
-
-        neighbors
-    }
+        offsets
+            .into_iter()
+            .map(move |x: isize| loc+x) // thanks compiler for the awesome hint but i still dunno what move did
+            .filter(|x: &isize | GRID_ISIZE > *x && *x >= 0)
+            .map(|x| x as usize)
+}
 
     fn init() -> Self {
         let values = [0u8; GRID_SIZE];
@@ -171,7 +162,7 @@ impl Grid {
     }
 
     fn update_neighbors(&mut self, value: u8, owner: u8, location: usize) {
-        let neighbors = self.get_neighbors(location);
+        let neighbors = Self::get_neighbors(location);
 
         for neighbor in neighbors {
             let neighbor_owner = self.owners[neighbor];
@@ -343,11 +334,11 @@ impl Game {
     }
 
     fn get_score_from_move(&self, location: usize, owner: u8, value: u8) -> u8 {
-        let neighbors = &self.grid.get_neighbors(location);
+        let neighbors = Grid::get_neighbors(location);
         let mut score: u8 = 0;
 
         for neighbor in neighbors {
-            let neighbor_owner = self.grid.owners[*neighbor];
+            let neighbor_owner = self.grid.owners[neighbor];
     
             if neighbor_owner == 0 {continue}
             
@@ -355,7 +346,7 @@ impl Game {
                 score += 1
             }
 
-            else if self.grid.values[*neighbor] < value {
+            else if self.grid.values[neighbor] < value {
                 score += value
             } 
         }
