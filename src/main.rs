@@ -2,6 +2,12 @@
 #![allow(unused)]
 // get rid of this during compile time, it's just annoying during prototyping
 
+/*
+Jan 12: 7600 simulations / second 
+Jan 14: 9500 simulations / second
+RUSTFLAGS="-C target-cpu=native" cargo build --release
+*/ 
+
 use rand::{random_bool, rng, seq::SliceRandom, prelude::IndexedRandom};
 use colored::{ColoredString, Colorize};
 use std::{iter::zip};
@@ -49,12 +55,6 @@ pub const ODD_OFFSETS: [isize; 6] = [
     -(X_MAX as isize) + 1,     // Top-Right
 ];
 
-/*
-Jan 12: 7600 simulations / second 
-Jan 14: 9500 simulations / second
-RUSTFLAGS="-C target-cpu=native" cargo build --release
-*/ 
-
 //#endregion
 
 use std::time::Instant;
@@ -100,7 +100,7 @@ impl Player {
             turn: 0,
             numbank: numbank
         }
-        // probably it's best to use default method, but this'll do
+        // probably it's best to use default method, but this'll do for now
     }
 
     const fn roll(&self) -> u8 {
@@ -172,8 +172,7 @@ impl Grid {
             if neighbor_owner == 0 {continue}
             
             else if neighbor_owner == owner {
-                self.values[neighbor] += 1;
-                
+                self.values[neighbor] += 1;                
                 // Gameplayer[neighbor_owner].score += 1
             }
 
@@ -210,10 +209,6 @@ impl Game {
         self.players[(owner - 1) as usize].score += value as usize;
         self.grid.turn += 1;
     }
-
-    // fn clone(&self) -> Self {
-    //     self
-    // }
 
     fn display(&self) {
         let mut board: String    = String::from("");
@@ -258,14 +253,10 @@ impl Game {
             }
         }
 
-        // self.display();
-
         let scores = self.get_scores();
         for (p, s) in zip(self.players.iter_mut(), scores){
             p.score = s
         }
-
-        // println!("Player1:{}, Player2:{}", self.players[0].score, self.players[1].score)
     }
 
         fn get_scores(&self) -> [usize; PLAYER_NUMBER] {
