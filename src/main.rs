@@ -1,20 +1,18 @@
 // main.rs
 #![allow(unused)]
-// get rid of this during compile time, it's just annoying during prototyping
 
 /*
-Jan 12: 7600 simulations / second 
-Jan 14: 9500 simulations / second
+Jan 12: 7600    simulations / second 
+Jan 14: 9500    simulations / second
+Jan 15: 20,000  simulations / second  (wow! goal met already!)
 RUSTFLAGS="-C target-cpu=native" cargo build --release
 */ 
 
 use rand::{random_bool, rng, seq::SliceRandom, prelude::IndexedRandom};
 use colored::{ColoredString, Colorize};
-use std::{iter::zip};
-// use rayon::prelude::*;
+use rayon::prelude::*;
 
 
-//#region
 pub const X_MAX: usize      = 10;
 pub const Y_MAX: usize      = 8;
 pub const GRID_SIZE: usize  = X_MAX * Y_MAX;
@@ -28,7 +26,7 @@ pub const ROLL_MAX: u8 = 20;
 pub const HOLE_PROBABILITY: f64 = 0.0; // 0.0 >= n >= 1
 
 pub const P1MOVETYPE: u8 = 2;
-pub const P2MOVETYPE: u8 = 2;
+pub const P2MOVETYPE: u8 = 3;
 pub const P3MOVETYPE: u8 = 1;
 pub const P4MOVETYPE: u8 = 1;
 
@@ -55,34 +53,30 @@ pub const ODD_OFFSETS: [isize; 6] = [
     -(X_MAX as isize) + 1,     // Top-Right
 ];
 
-//#endregion
 
-use std::time::Instant;
 fn main() {
-    let mut it: u32 = 0;
-    let start = Instant::now();
-    loop {
-        it += 1;
-        if it % 500 == 0 {print!("{} \n", it);}
-        let mut game = Game::initialize();
-        game.game_loop();
-        if it == 1000000 {break}
-    }
+    let mut game = Game::initialize();
+    game.game_loop();
 }
 
 pub const fn get_x(location: usize) -> usize {
     location % X_MAX
 }
 pub const fn get_y(location: usize) -> usize {
-    location / X_MAX // this is floor division, apparently
+    location / X_MAX 
 }
+
+pub const fn get_xy(location: usize) -> (usize, usize) {
+    (get_x(location), get_y(location))
+}
+
 
 #[derive(Clone, Copy)]
 struct Player {
     id: u8,
     move_type: u8,
     score: usize,
-    turn: usize, // used to point at numbank, instead of having to pop numbank every time
+    turn: usize, 
     numbank: [u8; NUMBANK_SIZE]
 }
 
@@ -103,8 +97,8 @@ impl Player {
         // probably it's best to use default method, but this'll do for now
     }
 
-    const fn roll(&self) -> u8 {
-        self.numbank[self.turn]
+    const fn roll(&self) -> u8 { // make const
+        self.numbank[self.turn]        
     }
 }
 
@@ -119,6 +113,9 @@ struct Grid {
 
 impl Grid {
     pub fn get_neighbors(location: usize) -> impl Iterator<Item = usize> {
+        // takes 40% of runtimes
+        // OPTIMIZE, sometimes speed > readability/functional code
+
         let loc = location as isize;
         let is_odd = get_y(location) % 2 == 1;
         let offsets: [isize; 6] = if is_odd {ODD_OFFSETS} else {EVEN_OFFSETS};
@@ -164,6 +161,7 @@ impl Grid {
     }
 
     fn update_neighbors(&mut self, value: u8, owner: u8, location: usize) {
+        // around 5% of execution time, optimize 
         let neighbors = Self::get_neighbors(location);
 
         for neighbor in neighbors {
@@ -225,7 +223,7 @@ impl Game {
             if value < 10 { // 4 -> 04
                 v = "0".to_owned() + &v
             }
-            v = "P".to_owned() + &v; // p is placeholder for balancing
+            v = "P".to_owned() + &v; // p is placeholder for player color
 
             if get_x(idx) == 0 {
                 board.push_str("\n");
@@ -245,55 +243,77 @@ impl Game {
         println!("{}", board)
     }
 
-    pub fn game_loop(&mut self){
-        while !self.grid.is_terminal() {
-            for p in self.players.into_iter() { // ISSUE--even if game is not terminal, it can be in the next 2 moves, 
-                if !self.grid.is_terminal(){            // which is not accounted for in the for loop. I added a secondary check,
-                self.make_move(p)}              // but it is superfluous and should be replaced later
+    fn simulation_loop(&mut self, player: Player) -> u8 {
+        let mut idx: usize = player.id as usize;
+        // REMEMBER TO SHUFFLE NUMBANK
+        loop {
+            if !self.grid.is_terminal(){
+                self.make_random_move(self.players[(idx+1) % PLAYER_NUMBER]);
+                idx += 1;
+            }
+            else {
+                break
             }
         }
+        return self.get_winner()
 
-        let scores = self.get_scores();
-        for (p, s) in zip(self.players.iter_mut(), scores){
-            p.score = s
+    }
+
+    fn game_loop(&mut self) { 
+        loop {
+            for p in self.players.into_iter() { 
+                if !self.grid.is_terminal(){
+                     self.make_move(p);
+                }          
+                else {break}
+            }
         }
     }
 
-        fn get_scores(&self) -> [usize; PLAYER_NUMBER] {
-            let mut scores: [usize; PLAYER_NUMBER] = [0usize; PLAYER_NUMBER];
 
-            for player_number in 1..=PLAYER_NUMBER {
-                let mut pscore: usize = 0;
-                for (location, o) in self.grid.owners.iter().enumerate(){
-                    if *o == player_number as u8 {
-                        pscore += self.grid.values[location] as usize;
-                    }
+    fn get_scores(&self) -> [usize; PLAYER_NUMBER] {
+        let mut scores: [usize; PLAYER_NUMBER] = [0usize; PLAYER_NUMBER];
+
+        for player_number in 1..=PLAYER_NUMBER {
+            let mut pscore: usize = 0;
+            for (location, o) in self.grid.owners.iter().enumerate(){
+                if *o == player_number as u8 {
+                    pscore += self.grid.values[location] as usize;
                 }
-                scores[player_number-1] = pscore;
-            } scores
-
-            /*
-            We need to:
-                Approach 1
-                First, get an iter of self.grid.owners
-                Then, enumerate
-                Then, split it into a list of vecs with each owner, and only care about locations
-                Then, get the values of all of these locations, in the same vec.
-                Then, get the sum of each of these vecs.
-                Finally, return.*/
-            // self.grid.values
-            // .iter()
-            // .enumerate()
-            // .zip()
+            }
+            scores[player_number-1] = pscore;
+        } scores
 
 
+        /*
+        We need to:
+            Approach 1
+            First, get an iter of self.grid.owners
+            Then, enumerate
+            Then, split it into a list of vecs with each owner, and only care about locations
+            Then, get the values of all of these locations, in the same vec.
+            Then, get the sum of each of these vecs.
+            Finally, return.*/
+        // self.grid.values
+        // .iter()
+        // .enumerate()
+        // .zip()
+}
+
+    fn get_winner(&self) -> u8 {
+        let winner = self.get_scores()
+        .iter()
+        .enumerate()
+        .max_by_key(|(_, score)| *score)
+        .map(|(idx, _)| idx)
+        .unwrap();
+        (winner + 1) as u8
     }
-
     fn get_valid_moves(&self) -> Vec<usize>{
         self.grid.takens
         .iter()
         .enumerate()
-        .filter(|(idx, tile)| !**tile) // only include true tiles
+        .filter(|(_, tile)| !*tile) // only include true tiles
         .map(|(idx, _)| idx)                     // ignore the tile bool itself
         .collect()                                                                 // return the array of indices
     }
@@ -315,6 +335,7 @@ impl Game {
         if player.move_type == 0 {      panic!("Add make_human_move.") }
         else if player.move_type == 1 { self.make_random_move(player); }
         else if player.move_type == 2 { self.make_greedy_move(player)}
+        else if player.move_type == 3 { self.make_monte_carlo_flat_move(player)}
     }
 
     fn make_random_move(&mut self, player: Player) {
@@ -323,10 +344,10 @@ impl Game {
         let chosen_move: usize = *moves.choose(&mut rng).expect("Game is not terminal.");
         
         self.add(player.roll(), player.id, chosen_move);
-        // self.display();
     }
 
     fn get_score_from_move(&self, location: usize, owner: u8, value: u8) -> u8 {
+
         let neighbors = Grid::get_neighbors(location);
         let mut score: u8 = 0;
 
@@ -349,22 +370,51 @@ impl Game {
     fn make_greedy_move(&mut self, player: Player) {
         let moves: Vec::<usize>  = self.get_valid_moves();
         let mut best_move = moves[0];
+        let mut best_score: usize = 0;
 
         for move_choice in moves.iter(){
             let current_score = self.get_score_from_move(*move_choice, player.id, player.roll());
-            if current_score > best_move as u8 {
+            if current_score > best_score as u8 {
                 best_move = *move_choice}
-        }
-        
+        }        
 
-        // println!("Chose {},{} ({})", get_x(best_move as usize), get_y(best_move as usize), best_move);
-        
         self.add(player.roll(), player.id, best_move as usize);
-        // self.display();
+        self.display();
     }
     
-    fn run_single_rollout(&mut self, player: Player){}
-    fn evaluate(&mut self, player: Player){}
-    fn make_monte_carlo_flat_move(&mut self, player: Player){}
+    fn run_single_rollout(&mut self, player: Player) -> u8 {
+        self.simulation_loop(player)} // always returns 1s for some reason
+
+
+    fn evaluate(&mut self, player: Player, location: usize) -> (u32, u32) { // chokepoint for parallelization
+        const SIMULATION_MAX: u32 = 5000; // replace this with an error function! see error_function_idea
+        let mut win_count:  u32 = 0;
+        let mut game_count: u32 = 0;
+        let mut copy = self.clone();
+        
+        copy.add(player.roll(), player.id, location);
+        
+        loop {
+            game_count += 1; 
+            if game_count >= SIMULATION_MAX {break}
+            if copy.clone().run_single_rollout(player.clone()) == player.id {win_count += 1}
+        }
+        println!("{}", player.id);
+        (win_count, game_count)
+    }
+    fn make_monte_carlo_flat_move(&mut self, player: Player) {
+        let mut best_move: (f32, usize) = (0.0, GRID_SIZE+1); // score (wins/total), location
+
+        for tile in self.get_valid_moves() {
+            let (current_wins, current_total) = self.evaluate(player, tile);
+            let current_move_score = current_wins as f32 / current_total as f32;
+            if best_move.0 < current_move_score {
+                best_move = (current_move_score, tile)
+            }
+            println!("Best move is {:?}, looking at {:?}", get_xy(best_move.1), get_xy(tile))
+        }
+        self.add(player.roll(), player.id, best_move.1);
+        self.display();
+    }
 
 }
