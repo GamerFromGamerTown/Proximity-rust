@@ -10,6 +10,7 @@ RUSTFLAGS="-C target-cpu=native" cargo build --release
 */
 
 use colored::{ColoredString, Colorize};
+use rand::Rng;
 use rand::{prelude::IndexedRandom, random_bool, rng, seq::SliceRandom};
 use rayon::{prelude::*, vec}; 
 use std::time::{Duration, Instant}; 
@@ -33,7 +34,7 @@ pub const NUMBANK_SIZE: usize = usize::div_ceil(GRID_SIZE, PLAYER_NUMBER); // ce
 pub const ROLL_MAX: u8 = 20;
 pub const HOLE_PROBABILITY: f64 = 0.0; // 0.0 >= n >= 1
 
-pub const P1MOVETYPE: u8 = 0;
+pub const P1MOVETYPE: u8 = 3;
 pub const P2MOVETYPE: u8 = 3;
 pub const P3MOVETYPE: u8 = 1;
 pub const P4MOVETYPE: u8 = 1;
@@ -194,7 +195,7 @@ impl Grid {
     }
 
     fn update_neighbors(&mut self, value: u8, owner: u8, location: usize) {
-        // around 5% of execution time, optimize
+        // around 5% of execution time
         let neighbors = Self::get_neighbors(location);
 
         for neighbor in neighbors {
@@ -204,11 +205,8 @@ impl Grid {
                 continue;
             } else if neighbor_owner == owner {
                 self.values[neighbor] += 1;
-                // Gameplayer[neighbor_owner].score += 1
             } else if self.values[neighbor] < value {
                 self.owners[neighbor] = owner;
-                // player[owner].score += value
-                // player[neighbor_owner].score -= value
             }
         }
     }
@@ -313,6 +311,7 @@ impl Game {
 
     fn simulation_loop(&mut self, starting_player: Player) -> u8 {
         let mut current_idx: usize = (starting_player.id as usize) - 1;
+        let mut rng = rng();
         loop {
             if self.grid.is_terminal() {
                 break;
@@ -321,7 +320,7 @@ impl Game {
             current_idx = (current_idx + 1) % PLAYER_NUMBER;
 
             let current_player = self.players[current_idx];
-            self.make_random_move(current_player);
+            self.make_random_move(current_player, &mut rng);
         }
 
         self.get_winner()
@@ -382,15 +381,15 @@ impl Game {
     }
 
     // move types
-    fn make_random_move(&mut self, player: Player) {
-        let mut rng = rng();
+    fn make_random_move(&mut self, player: Player, rng: &mut impl Rng) {
+        // let mut rng = rng();
         
         let mut moves: ArrayVec<usize, GRID_SIZE> = ArrayVec::new();
         for m in self.get_valid_moves() {
             moves.push(m);
         }
 
-        let chosen_move: usize = *moves.choose(&mut rng).expect("Game is not terminal.");
+        let chosen_move: usize = *moves.choose(rng).expect("Game is not terminal.");
 
         self.add(player.roll(), player.id, chosen_move);
     }
@@ -439,7 +438,7 @@ impl Game {
                 (*moveinfo_ptr).total = current_total as u64;
             }  // it's safe because each index is exclusive
         });
-        self.total_simulations += (SIMULATION_MAX as usize * moves.len()) as usize;
+        self.total_simulations = (SIMULATION_MAX as usize * moves.len()) as usize;
 
         let best_move = 
         moves_info
@@ -523,10 +522,11 @@ impl Game {
 
     // misc
     fn make_move(&mut self, player: Player) {
+        let mut rng = rng();
         if player.move_type == 0 {
             self.make_human_move(player);
         } else if player.move_type == 1 {
-            self.make_random_move(player);
+            self.make_random_move(player, &mut rng);
         } else if player.move_type == 2 {
             self.make_greedy_move(player)
         } else if player.move_type == 3 {
