@@ -5,15 +5,21 @@
 Jan 12: 7600    simulations / second
 Jan 14: 9500    simulations / second
 Jan 15: 20,000  simulations / second  (wow! goal met already!)
+Jan 17: 330,000 simulations / second  (achieved with multithreading)
 RUSTFLAGS="-C target-cpu=native" cargo build --release
 */
 
 use colored::{ColoredString, Colorize};
 use rand::{prelude::IndexedRandom, random_bool, rng, seq::SliceRandom};
-use rayon::prelude::*;
-use pyo3::prelude::*;
+use rayon::{prelude::*, vec}; 
+use std::time::{Duration, Instant}; 
+use std::io::{self, Read};
+use arrayvec::ArrayVec;
 
+// use async_executor::Executor;
+// use std::thread;
 pub const RECORD_WINLOSS: bool = true;
+pub const SIMULATION_MAX: u32 = 5000; // replace this with an error function! see error_function_idea
 
 pub const X_MAX: usize = 10;
 pub const Y_MAX: usize = 8;
@@ -27,7 +33,7 @@ pub const NUMBANK_SIZE: usize = usize::div_ceil(GRID_SIZE, PLAYER_NUMBER); // ce
 pub const ROLL_MAX: u8 = 20;
 pub const HOLE_PROBABILITY: f64 = 0.0; // 0.0 >= n >= 1
 
-pub const P1MOVETYPE: u8 = 2;
+pub const P1MOVETYPE: u8 = 0;
 pub const P2MOVETYPE: u8 = 3;
 pub const P3MOVETYPE: u8 = 1;
 pub const P4MOVETYPE: u8 = 1;
@@ -57,17 +63,28 @@ pub const ODD_OFFSETS: [isize; 6] = [
 fn main() {
     let mut game = Game::initialize();
     game.game_loop();
+    println!("{:?}", game.get_scores())
 }
 
 // coordinates helpers
-pub const fn get_x(location: usize) -> usize {
+pub const fn location_to_x(location: usize) -> usize {
     location % X_MAX
 }
-pub const fn get_y(location: usize) -> usize {
+pub const fn location_to_y(location: usize) -> usize {
     location / X_MAX
 }
-pub const fn get_xy(location: usize) -> (usize, usize) {
-    (get_x(location), get_y(location))
+pub const fn location_to_xy(location: usize) -> (usize, usize) {
+    (location_to_x(location), location_to_y(location))
+}
+pub const fn xy_to_location(x: usize, y: usize) -> usize {
+    (y * X_MAX) + x
+}
+
+#[derive(Copy, Clone)]
+struct MoveInfo {
+    wins: u64,
+    total: u64,
+    uncertainty: f64,
 }
 
 #[derive(Clone, Copy)]
@@ -114,18 +131,35 @@ struct Grid {
 
 impl Grid {
     pub fn get_neighbors(location: usize) -> impl Iterator<Item = usize> {
-        // takes 40% of runtimes
-        // OPTIMIZE, sometimes speed > readability/functional code
-
+        // ai generated
+        let x = location_to_x(location);
+        let y = location_to_y(location);
         let loc = location as isize;
-        let is_odd = get_y(location) % 2 == 1;
-        let offsets: [isize; 6] = if is_odd { ODD_OFFSETS } else { EVEN_OFFSETS };
 
-        offsets
-            .into_iter()
-            .map(move |x: isize| loc + x) // thanks compiler for the awesome hint but i still dunno what move did
-            .filter(|x: &isize| GRID_ISIZE > *x && *x >= 0)
-            .map(|x| x as usize)
+        let offsets = if (y & 1) == 1 {
+            ODD_OFFSETS
+        } else {
+            EVEN_OFFSETS
+        };
+        let x_isize = X_MAX as isize;
+
+        offsets.into_iter().filter_map(move |off| {
+            let n = loc + off;
+            if n < 0 || n >= GRID_ISIZE {
+                return None;
+            }
+
+            // prevent row-wrap on +/-1 and diagonals
+            if (off == 1 || off.abs() == x_isize + 1) && x + 1 >= X_MAX {
+                return None; // needs a right column
+            }
+            if (off == -1 || off.abs() == x_isize - 1) && x == 0 {
+                return None; // needs a left column
+            }
+
+            Some(n as usize)
+        })
+        // ai generated
     }
 
     fn init() -> Self {
@@ -155,7 +189,7 @@ impl Grid {
         }
     }
 
-    fn is_terminal(&mut self) -> bool {
+    fn is_terminal(&self) -> bool {
         self.takens.iter().all(|&tile| tile)
     }
 
@@ -188,6 +222,8 @@ impl Grid {
 struct Game {
     grid: Grid,
     players: [Player; PLAYER_NUMBER],
+    total_simulations: usize,
+    start_time: Instant,
 }
 
 impl Game {
@@ -196,8 +232,10 @@ impl Game {
             grid: Grid::init(),
             // FIXME
             players: [Player::init(1, P1MOVETYPE), Player::init(2, P2MOVETYPE)], // halfassed temporary solution
-                                                                                 // TODO
-        }
+            // TODO
+            total_simulations: 0,
+            start_time: Instant::now(),
+        }   
     }
     // core
     fn add(&mut self, value: u8, owner: u8, location: usize) {
@@ -214,22 +252,21 @@ impl Game {
         self.grid.turn += 1;
     }
 
-    fn get_valid_moves(&self) -> Vec<usize> {
+    fn get_valid_moves(&self) -> impl Iterator<Item = usize> {
+        // make this an iterator and we'll all be happy
         self.grid
             .takens
             .iter()
             .enumerate()
             .filter(|(_, tile)| !*tile) // only include true tiles
             .map(|(idx, _)| idx) // ignore the tile bool itself
-            .collect() // return the array of indices
     }
 
     const fn is_hole(taken: bool, owner: u8) -> bool {
         taken && owner == 0
     }
 
-    // output — display board
-    fn display(&self) {
+    fn display(&self, show_sim_sec: bool) {
         let mut board: String = String::from("");
         for idx in 0..GRID_SIZE {
             let mut tile = ColoredString::from("");
@@ -246,9 +283,9 @@ impl Game {
             }
             v = "P".to_owned() + &v; // p is placeholder for player color
 
-            if get_x(idx) == 0 {
+            if location_to_x(idx) == 0 {
                 board.push_str("\n");
-                if get_y(idx) % 2 == 1 {
+                if location_to_y(idx) % 2 == 1 {
                     board.push_str(padding)
                 }
             }
@@ -265,22 +302,29 @@ impl Game {
             board.push_str(&tile.to_string());
             board.push_str(&padding.to_string());
         }
-        println!("{}", board)
+        println!("{}", board);
+
+        if show_sim_sec {
+            let elapsed = self.start_time.elapsed().as_secs_f64();
+
+            println!("About {} simulations per second.", 
+            (self.total_simulations as f64 / elapsed).round())}
     }
 
-    // gameplay loops
-    fn simulation_loop(&mut self, player: Player) -> u8 {
-        let mut idx: usize = player.id as usize;
-        // REMEMBER TO SHUFFLE NUMBANK
+    fn simulation_loop(&mut self, starting_player: Player) -> u8 {
+        let mut current_idx: usize = (starting_player.id as usize) - 1;
         loop {
-            if !self.grid.is_terminal() {
-                self.make_random_move(self.players[(idx + 1) % PLAYER_NUMBER]);
-                idx += 1;
-            } else {
+            if self.grid.is_terminal() {
                 break;
             }
+            // advance to next player
+            current_idx = (current_idx + 1) % PLAYER_NUMBER;
+
+            let current_player = self.players[current_idx];
+            self.make_random_move(current_player);
         }
-        return self.get_winner();
+
+        self.get_winner()
     }
 
     fn game_loop(&mut self) {
@@ -292,6 +336,7 @@ impl Game {
                     break;
                 }
             }
+            if self.grid.is_terminal() {break}
         }
     }
 
@@ -339,45 +384,113 @@ impl Game {
     // move types
     fn make_random_move(&mut self, player: Player) {
         let mut rng = rng();
-        let moves: Vec<usize> = self.get_valid_moves();
+        
+        let mut moves: ArrayVec<usize, GRID_SIZE> = ArrayVec::new();
+        for m in self.get_valid_moves() {
+            moves.push(m);
+        }
+
         let chosen_move: usize = *moves.choose(&mut rng).expect("Game is not terminal.");
 
         self.add(player.roll(), player.id, chosen_move);
     }
 
     fn make_greedy_move(&mut self, player: Player) {
-        let moves: Vec<usize> = self.get_valid_moves();
-        let mut best_move = moves[0];
-        let mut best_score: usize = 0;
+        let mut moves: ArrayVec<usize, GRID_SIZE> = ArrayVec::new();
+        
+        for m in self.get_valid_moves() {
+            moves.push(m)
+        }
+
+        let mut best_move: usize = moves[0];
+        let mut best_score: u8 = 0;
 
         for move_choice in moves.iter() {
             let current_score = self.get_score_from_move(*move_choice, player.id, player.roll());
             if current_score > best_score as u8 {
-                best_move = *move_choice
+                best_move = *move_choice;
+                best_score = current_score;
             }
         }
 
         self.add(player.roll(), player.id, best_move as usize);
-        self.display();
+        self.display(false);
     }
 
     fn make_monte_carlo_flat_move(&mut self, player: Player) {
-        let mut best_move: (f32, usize) = (0.0, GRID_SIZE + 1); // score (wins/total), location
+        self.start_time = Instant::now();
+        let moves: Vec<usize> = self.get_valid_moves().collect();
 
-        for tile in self.get_valid_moves() {
-            let (current_wins, current_total) = self.evaluate(player, tile);
-            let current_move_score = current_wins as f32 / current_total as f32;
-            if best_move.0 < current_move_score {
-                best_move = (current_move_score, tile)
+        let mut moves_info: [MoveInfo; GRID_SIZE] = [MoveInfo {
+            wins: 0,
+            total: 100000000000000,
+            uncertainty: 0.0,
+        }; GRID_SIZE];
+        
+
+        let ptr = moves_info.as_mut_ptr() as usize;
+        moves.par_iter().for_each(|tile| {
+            let (current_wins, current_total) = self.evaluate(player, *tile);
+
+            unsafe { // evil multithreading
+                if *tile >= GRID_SIZE {panic!()}
+                let moveinfo_ptr = (ptr as *mut MoveInfo).add(*tile);
+                (*moveinfo_ptr).wins = current_wins as u64;
+                (*moveinfo_ptr).total = current_total as u64;
+            }  // it's safe because each index is exclusive
+        });
+        self.total_simulations += (SIMULATION_MAX as usize * moves.len()) as usize;
+
+        let best_move = 
+        moves_info
+            .iter()
+            .enumerate()
+            .max_by_key(|&item| (item.1.wins) * (65536) / (item.1.total))
+            // ^^ janky ass solution to add more precision to integer division,
+            // since float division isn't supported.
+            .map(|(idx, _)| idx);
+
+        self.add(player.roll(), player.id, best_move.unwrap());
+        self.display(true);
+    }
+
+    fn make_human_move(&mut self, player: Player) {
+        self.display(false);
+        loop {
+        println!("Please choose an X and Y to place the tile. Add a comma afterwards, too. Example: 5,3, \n Your roll is {}", player.roll());
+
+            let mut input = String::new();
+            io::stdin().read_line(&mut input).unwrap();
+            let separated_input: Vec<&str> = input.split(",").collect();
+
+            let xy: Vec<usize> = separated_input.iter()
+            .filter_map(|v| v.parse::<usize>().ok())
+            .collect::<Vec<usize>>();
+
+            println!("{:?}", xy);
+            if xy.len() != 2 {
+                println!("Invalid input. Please try again.");
+                continue
             }
-            println!(
-                "Best move is {:?}, looking at {:?}",
-                get_xy(best_move.1),
-                get_xy(tile)
-            )
+            
+            let x: usize = xy[0];
+            let y: usize = xy[1];
+            let location = xy_to_location(x, y);
+
+            if location_to_x(location) > X_MAX || location_to_y(location) > Y_MAX {
+                println!("Location out of bounds! Try again!");
+                continue;
+            }
+
+            if self.grid.takens[location] {
+                println!("Tile already taken! Try again.");
+                continue;
+            }
+            
+            self.add(player.roll(), player.id, location);
+            break
         }
-        self.add(player.roll(), player.id, best_move.1);
-        self.display();
+        
     }
 
     // simulation stuff
@@ -385,9 +498,8 @@ impl Game {
         self.simulation_loop(player)
     } // returns the winner from one randomly-played game
 
-    fn evaluate(&mut self, player: Player, location: usize) -> (u32, u32) {
+    fn evaluate(&self, player: Player, location: usize) -> (u32, u32) {
         // chokepoint for parallelization
-        const SIMULATION_MAX: u32 = 5000; // replace this with an error function! see error_function_idea
         let mut win_count: u32 = 0;
         let mut game_count: u32 = 0;
         let mut copy = self.clone();
@@ -399,22 +511,20 @@ impl Game {
             if game_count >= SIMULATION_MAX {
                 break;
             }
-            
+
             if copy.clone().run_single_rollout(player.clone()) == player.id {
                 win_count += 1;
                 if RECORD_WINLOSS {}
-                break
+                // break
             }
-            
         }
-        println!("{}", player.id);
         (win_count, game_count)
     }
 
     // misc
     fn make_move(&mut self, player: Player) {
         if player.move_type == 0 {
-            panic!("Add make_human_move.")
+            self.make_human_move(player);
         } else if player.move_type == 1 {
             self.make_random_move(player);
         } else if player.move_type == 2 {
