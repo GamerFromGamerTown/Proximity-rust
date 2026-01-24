@@ -1,0 +1,56 @@
+   0.031601195s  INFO prepare_target{force=false package_id=sandbox v0.1.0 (/home/gaymer/Rust/sandbox) target="sandbox"}: cargo::core::compiler::fingerprint: fingerprint error for sandbox v0.1.0 (/home/gaymer/Rust/sandbox)/Check { test: false }/TargetInner { name: "sandbox", doc: true, ..: with_path("/home/gaymer/Rust/sandbox/src/main.rs", Edition2024) }
+   0.031692812s  INFO prepare_target{force=false package_id=sandbox v0.1.0 (/home/gaymer/Rust/sandbox) target="sandbox"}: cargo::core::compiler::fingerprint:     err: failed to read `/home/gaymer/Rust/sandbox/target/debug/.fingerprint/sandbox-7895d291986a6212/bin-sandbox`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: <unknown>
+   1: <unknown>
+   2: <unknown>
+   3: <unknown>
+   4: <unknown>
+   5: <unknown>
+   6: <unknown>
+   7: <unknown>
+   8: <unknown>
+   9: <unknown>
+  10: <unknown>
+  11: <unknown>
+  12: <unknown>
+  13: <unknown>
+  14: <unknown>
+  15: <unknown>
+  16: __libc_start_call_main
+  17: __libc_start_main_alias_1
+  18: <unknown>
+   0.034275043s  INFO prepare_target{force=false package_id=sandbox v0.1.0 (/home/gaymer/Rust/sandbox) target="sandbox"}: cargo::core::compiler::fingerprint: fingerprint error for sandbox v0.1.0 (/home/gaymer/Rust/sandbox)/Check { test: true }/TargetInner { name: "sandbox", doc: true, ..: with_path("/home/gaymer/Rust/sandbox/src/main.rs", Edition2024) }
+   0.034304622s  INFO prepare_target{force=false package_id=sandbox v0.1.0 (/home/gaymer/Rust/sandbox) target="sandbox"}: cargo::core::compiler::fingerprint:     err: failed to read `/home/gaymer/Rust/sandbox/target/debug/.fingerprint/sandbox-2439827660c448a3/test-bin-sandbox`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: <unknown>
+   1: <unknown>
+   2: <unknown>
+   3: <unknown>
+   4: <unknown>
+   5: <unknown>
+   6: <unknown>
+   7: <unknown>
+   8: <unknown>
+   9: <unknown>
+  10: <unknown>
+  11: <unknown>
+  12: <unknown>
+  13: <unknown>
+  14: <unknown>
+  15: <unknown>
+  16: __libc_start_call_main
+  17: __libc_start_main_alias_1
+  18: <unknown>
+    Checking sandbox v0.1.0 (/home/gaymer/Rust/sandbox)
+error: could not compile `sandbox` (bin "sandbox" test) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `sandbox` (bin "sandbox") due to 1 previous error

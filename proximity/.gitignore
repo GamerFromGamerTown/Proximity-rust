@@ -1,0 +1,222 @@
+################################################################################
+# Editors / IDEs
+################################################################################
+
+# Visual Studio Code (ignore all, keep selected config)
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+!*.code-workspace
+
+# Built Visual Studio Code Extensions
+*.vsix
+
+# JetBrains / RustRover / PyCharm (uncomment if you use JetBrains IDEs)
+# .idea/
+
+################################################################################
+# Rust / Cargo
+################################################################################
+
+# Cargo build artifacts
+**/target/
+**/debug/
+**/perf/
+# rustfmt backup files
+**/*.rs.bk
+
+# MSVC debug info
+*.pdb
+
+# Optional: rust-analyzer / RLS / misc
+# .rustc_info.json
+
+# Cargo mutants
+**/mutants.out*/
+
+# Coverage tools
+# cargo-tarpaulin creates these by default in some setups
+tarpaulin-report.html
+cobertura.xml
+
+# Rust compiled artifacts (usually under target/, but harmless to ignore)
+*.rlib
+*.rmeta
+*.d
+*.o
+
+# Cargo.lock:
+# - For applications/binaries: generally COMMIT Cargo.lock
+# - For libraries: often do NOT commit Cargo.lock
+# Cargo.lock
+
+################################################################################
+# Python
+################################################################################
+
+# Byte-compiled / optimized
+__pycache__/
+*.py[codz]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+dist/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache/
+nosetests.xml
+coverage.xml
+*.cover
+*.py.cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Type check / lint caches
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+.ruff_cache/
+
+# Virtual environments
+.env
+.envrc
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# PDM / Pixi
+.pdm-python
+.pdm-build/
+.pixi/
+
+# PEP 582
+__pypackages__/
+
+# Jupyter / IPython
+.ipynb_checkpoints/
+profile_default/
+ipython_config.py
+
+# Misc Python tooling
+.pypirc
+
+################################################################################
+# Web / Framework odds and ends (kept from your file)
+################################################################################
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask
+instance/
+.webassets-cache
+
+# Scrapy
+.scrapy/
+
+# Sphinx
+docs/_build/
+
+# PyBuilder (note: 'target/' is already ignored above for Rust; no need to repeat)
+.pybuilder/
+
+# mkdocs
+site/
+
+# Marimo
+marimo/_static/
+marimo/_lsp/
+__marimo__/
+
+# Streamlit secrets (keep secrets out of git)
+.streamlit/secrets.toml
+
+################################################################################
+# Services / data (kept from your file)
+################################################################################
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Redis
+*.rdb
+*.aof
+*.pid
+
+# RabbitMQ
+mnesia/
+rabbitmq/
+rabbitmq-data/
+
+# ActiveMQ
+activemq-data/
+
+################################################################################
+# OS / Temp files
+################################################################################
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Linux
+*~
+.nfs*
+
+# Vim / Nano / Emacs swap & backups
+*.swp
+*.swo
+*.swn
+*.bak
+*.tmp
+*.orig
+
+################################################################################
+# Abstra
+################################################################################
+.abstra/

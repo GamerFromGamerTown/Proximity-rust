@@ -1,0 +1,26 @@
+[package]
+name = "proximity"
+version = "1.0.0"
+edition = "2024"
+
+[dependencies]
+cargo-watch = "8.5.3"
+rand = "0.9.2"
+colored = "3.1.1"
+csv = "1.4.0"
+rayon = "1.11.0"
+arrayvec = "0.7.6"
+pyo3 = "0.27.2"
+
+[lib]
+name = "proximity"
+crate-type = ["cdylib"]
+
+[[bin]]
+name = "proximity"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 3       
+lto = "fat"          
+codegen-units = 1   
