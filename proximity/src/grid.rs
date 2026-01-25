@@ -2,8 +2,7 @@ use arrayvec::ArrayVec;
 use rand::{random_bool, rng, seq::SliceRandom};
 
 use crate::constants::{
-    get_valid_moves_from_takens, location_to_x, location_to_y, EVEN_OFFSETS, GRID_ISIZE, GRID_SIZE,
-    HOLE_PROBABILITY, ODD_OFFSETS, X_MAX,
+    EVEN_OFFSETS, GRID_ISIZE, GRID_SIZE, HOLE_PROBABILITY, ODD_OFFSETS, X_MAX, get_valid_moves_from_takens, hole_probability, location_to_x, location_to_y
 };
 
 #[derive(Clone)]
@@ -60,9 +59,9 @@ impl Grid {
 
         let mut takens: [bool; GRID_SIZE];
 
-        if HOLE_PROBABILITY > 0.0 {
+        if hole_probability() > 0.0 {
             takens = [false; GRID_SIZE];
-            takens.fill_with(|| random_bool(HOLE_PROBABILITY));
+            takens.fill_with(|| random_bool(hole_probability()));
         }
         // consider pregeneration
         else {
