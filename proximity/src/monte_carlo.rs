@@ -1,3 +1,5 @@
+use crate::constants::simulation_max;
+
 impl Game {
     fn make_monte_carlo_flat_move(&mut self, player: Player) {
         self.start_time = Instant::now();
@@ -24,7 +26,7 @@ impl Game {
                 (*moveinfo_ptr).total = current_total as u64;
             } // it's safe because each index is exclusive
         });
-        self.moves = (SIMULATION_MAX as usize * (moves.len() * moves.len())) as usize;
+        self.moves = (simulation_max() as usize * (moves.len() * moves.len())) as usize;
 
         let best_move = moves_info
             .iter()
@@ -54,7 +56,7 @@ impl Game {
         let mut copy = self.clone();
 
         let sn = 
-        if simnum == None {SIMULATION_MAX} 
+        if simnum == None {simulation_max()} 
         else {simnum.unwrap()};
 
         copy.add(player.roll(), player.id, location);
