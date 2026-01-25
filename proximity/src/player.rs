@@ -1,6 +1,6 @@
 use rand::{rng, seq::SliceRandom};
 
-use crate::constants::{NUMBANK_SIZE, PLAYER_MOVETYPES, ROLL_MAX};
+use crate::constants::{NUMBANK_SIZE, PLAYER_MOVETYPES, ROLL_MAX, roll_max};
 
 #[derive(Clone, Copy)]
 pub(crate) struct Player {
@@ -15,7 +15,7 @@ impl Player {
     pub(crate) fn init(id: u8, move_type: u8) -> Self {
         let mut rng = rng();
         let mut numarray: [u8; NUMBANK_SIZE] =
-            std::array::from_fn(|i: usize| ((i as u8 + 1) % ROLL_MAX) + 1);
+            std::array::from_fn(|i: usize| ((i as u8 + 1) % roll_max()) + 1);
         numarray.shuffle(&mut rng);
         let numbank: [u8; NUMBANK_SIZE] = numarray;
 
