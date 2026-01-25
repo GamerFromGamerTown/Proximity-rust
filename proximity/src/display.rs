@@ -41,9 +41,10 @@ impl Game {
             let elapsed = self.start_time.elapsed().as_secs_f64();
 
             println!(
-                "About {} moves per second, or {} ns/move",
+                "About {} moves per second, or {} ns/move. ({} sim/sec)",
                 ((self.moves as f64 / elapsed).round()),
                 ((elapsed * (10u64.pow(9)) as f64 / self.moves as f64).round()),
+                ((((self.moves) as f64 / elapsed) / self.grid.valid_moves.len() as f64).round()),
             )
         }
     }
