@@ -8,8 +8,7 @@ use std::io::{self};
 use std::time::Instant;
 
 use crate::constants::{
-    location_to_x, location_to_xy, location_to_y, xy_to_location, COLORS, GRID_SIZE, PLAYER_MOVETYPES,
-    PLAYER_NUMBER, RECORD_WINLOSS, SIMULATION_MAX, TWO_POW_32, X_MAX, Y_MAX,
+    COLORS, GRID_SIZE, PLAYER_MOVETYPES, PLAYER_NUMBER, RECORD_WINLOSS, SIMULATION_MAX, TWO_POW_32, X_MAX, Y_MAX, location_to_x, location_to_xy, location_to_y, player_movetypes, xy_to_location
 };
 use crate::grid::Grid;
 use crate::player::Player;
@@ -33,7 +32,7 @@ pub(crate) struct Game {
 impl Game {
     pub(crate) fn new() -> Self {
         let p: [Player; PLAYER_NUMBER] =
-            std::array::from_fn(|pnum| Player::init((pnum + 1) as u8, PLAYER_MOVETYPES[pnum]));
+            std::array::from_fn(|pnum| Player::init((pnum + 1) as u8, player_movetypes()[pnum]));
 
         Self {
             grid: Grid::init(),
