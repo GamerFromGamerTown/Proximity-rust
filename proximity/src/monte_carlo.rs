@@ -1,20 +1,21 @@
 use crate::constants::simulation_max;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 impl Game {
-    fn make_monte_carlo_flat_move(&mut self, player: Player) {
+    fn make_monte_carlo_flat_move(&mut self, player: Player, rng: &mut SmallRng) {
         self.start_time = Instant::now();
-        let mut moves: &ArrayVec<usize, GRID_SIZE> = &self.grid.valid_moves;
+        let moves: &ArrayVec<usize, GRID_SIZE> = &self.grid.valid_moves;
 
         let mut moves_info: [MoveInfo; GRID_SIZE] = [MoveInfo {
             wins: 0,
             total: 100000000000000,
-            uncertainty: 0, // uncertainty is 0.0-1.0 into 0-2^32 (4294967296)
+            uncertainty: 0, // uncertainty is 0.0-1.0 into 0-u32::MAX (4294967295)
         }; GRID_SIZE];
 
         let ptr = moves_info.as_mut_ptr() as usize;
 
-        moves.par_iter().for_each(|tile| {
-            let (current_wins, current_total) = self.evaluate(player, *tile, None);
+        moves.iter().for_each(|tile| {
+            let (current_wins, current_total) = self.evaluate(player, *tile, None, rng);
 
             unsafe {
                 // evil multithreading
@@ -43,14 +44,12 @@ impl Game {
 
     // simulation stuff
     #[inline]
-    fn run_single_rollout(&mut self, player: Player) -> u8 {
-        self.simulation_loop(player)
+    fn run_single_rollout(&self, player: Player, rng: &mut SmallRng) -> u8 {
+        self.clone().simulation_loop(player.clone(), rng)
     } // returns the winner from one randomly-played game
 
-    fn evaluate(&self, player: Player, location: usize, simnum: Option<u32>) -> (u32, u32) {
-        // chokepoint for parallelization
-        // maybe just maybe pass down a shared clone instead of doing it every time
-        // keep in mind safety
+    // #[inline(never)] // TEMP BENCHMARK FIXME
+    fn evaluate(&self, player: Player, location: usize, simnum: Option<u32>, rng: &mut SmallRng) -> (u32, u32) {
         let mut win_count: u32 = 0;
         let mut game_count: u32 = 0;
         let mut copy = self.clone();
@@ -67,10 +66,8 @@ impl Game {
                 break;
             }
 
-            if copy.clone().run_single_rollout(player.clone()) == player.id {
+            if copy.run_single_rollout(player, rng) == player.id {
                 win_count += 1;
-                if RECORD_WINLOSS {}
-                // break
             }
         }
         (win_count, game_count)
