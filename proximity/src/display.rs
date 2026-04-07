@@ -1,5 +1,4 @@
-impl Game {
-    #[inline(never)]
+impl Game { 
     fn display(&self, show_sim_sec: bool) {
         let mut board: String = String::from("");
         for idx in 0..GRID_SIZE {
@@ -8,7 +7,6 @@ impl Game {
             let taken = self.grid.takens[idx];
             let owner = self.grid.owners[idx];
             let value = self.grid.values[idx];
-            
             let mut v = self.grid.values[idx].to_string();
 
             let is_hole = Game::is_hole(taken, owner);
@@ -45,7 +43,7 @@ impl Game {
             println!(
                 "About {} moves per second, or {} ns/move. ({} sim/sec)",
                 ((self.moves as f64 / elapsed).round()),
-                ((elapsed * (10u64.pow(9)) as f64 / self.moves as f64) * 100.0).round() / 100.0,
+                ((elapsed * (10u64.pow(9)) as f64 / self.moves as f64).round()),
                 ((((self.moves) as f64 / elapsed) / self.grid.valid_moves.len() as f64).round()),
             )
         }
