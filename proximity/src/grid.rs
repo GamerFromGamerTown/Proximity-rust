@@ -1,9 +1,10 @@
 use arrayvec::ArrayVec;
-use rand::{random_bool, rng, seq::SliceRandom};
+use rand::random_bool;
 
-use crate::constants::{
-    EVEN_OFFSETS, GRID_ISIZE, GRID_SIZE, HOLE_PROBABILITY, ODD_OFFSETS, X_MAX, get_valid_moves_from_takens, hole_probability, location_to_x, location_to_y
-};
+use crate::{constants::{
+    EVEN_OFFSETS, GRID_ISIZE, GRID_SIZE, ODD_OFFSETS, PLAYER_MAX, PLAYER_NUMBER, X_MAX, get_valid_moves_from_takens, hole_probability, location_to_x, location_to_y
+}, player::Player};
+
 
 #[derive(Clone)]
 pub(crate) struct Grid {
@@ -11,13 +12,14 @@ pub(crate) struct Grid {
     pub(crate) owners: [u8; GRID_SIZE],
     pub(crate) takens: [bool; GRID_SIZE],
     pub(crate) valid_moves: ArrayVec<usize, GRID_SIZE>,
+    pub(crate) valid_moves_indices: ArrayVec<usize, GRID_SIZE>,
     pub(crate) adjacency: [bool; GRID_SIZE],
     pub(crate) turn: usize,
 }
         
 
 impl Grid {
-
+    // #[inline(never)] // TEMP BENCHMARK FIXME
     pub fn get_neighbors(location: usize) -> impl Iterator<Item = usize> {
         // i didn't want to fix the wrap around error myself, so 
         // i got an LLM to fix it. hopeful rewrite sooner rather than later
@@ -67,15 +69,18 @@ impl Grid {
         else {
             takens = [false; GRID_SIZE];
         }
+
         let adj = [false; GRID_SIZE];
 
         let valid_moves: ArrayVec<usize, GRID_SIZE> =
             get_valid_moves_from_takens(&takens).collect();
+
         Self {
             values: values,
             owners: owners,
             takens: takens,
-            valid_moves: valid_moves,
+            valid_moves: valid_moves.clone(),
+            valid_moves_indices: valid_moves,
             adjacency: adj,
             turn: turn,
         }
@@ -83,41 +88,68 @@ impl Grid {
 
     #[inline]
     pub(crate) fn is_terminal(&self) -> bool {
-        self.takens.iter().all(|&tile| tile)
+        self.valid_moves.is_empty()
     }
 
-    pub(crate) fn update_neighbors(&mut self, value: u8, owner: u8, location: usize) {
+    // #[inline(never)] // TEMP BENCHMARK FIXME
+    pub(crate) fn update_neighbors(&mut self, value: u8, owner: u8, location: usize, players: &mut [Player; PLAYER_NUMBER]) {
         let neighbors = Self::get_neighbors(location); 
-        
         let owners = &mut self.owners;
         let values = &mut self.values;
 
-        for neighbor in neighbors {
-            unsafe { // removes bounds checks for speed
-                    let o = *owners.get_unchecked(neighbor);
-                    let value_ptr = values.get_unchecked_mut(neighbor);
-                    let v = *value_ptr;
-                    
-                    let is_weak: u8 = (v < value) as u8;
-                    let is_me = (o == owner) as u8;
-                    let is_enemy: u8 = (o != owner) as u8;
-                    let is_taken: u8 = (o != 0) as u8;
+        let mut score_deltas: [i16; PLAYER_NUMBER] = [0i16; PLAYER_NUMBER];
+        // stores an array with the score changes for each player after updating
+        // faster to update all scores at once than to do it every time
 
-                    let reinforce = is_me;
-                    let capture: u8 = is_weak + is_enemy + is_taken;
+// Pre-calculate your own score index and pointer
+let my_idx = (owner - 1) as usize;
 
-                    *value_ptr += reinforce; // 0 if not me, 1 if is
-                    // wow mostly branchless prediction !
+// We assume `neighbors` is a valid iterator of usize indices
+for neighbor in neighbors {
+    unsafe {
+        // 1. Pointer Aliasing: Calculate addresses once per neighbor
+        // This avoids re-calculating offsets for every read/write
+        let nb_val_ptr = values.get_unchecked_mut(neighbor);
+        let nb_own_ptr = owners.get_unchecked_mut(neighbor);
 
-                    if capture == 3 {
-                        *owners.get_unchecked_mut(neighbor) = owner;
-                    } // there's probably a clever way to make
-                    //   this branchless, but i don't see how
-                }
-        } // index already verified (if n < 0 || n >= GRID_ISIZE)
+        // 2. Load State
+        let old_val = *nb_val_ptr;
+        let old_own = *nb_own_ptr;
+
+        // 3. Logic
+        let is_me = old_own == owner;
+        
+        let is_capture = (!is_me) & (old_own != 0) & (old_val < value);
+        let capture_mask = -(is_capture as i8) as u8; // 0xFF if capture, 0x00 if not
+
+        *nb_val_ptr += (is_me as u8);
+
+        // if capture_mask is 0x00, value doesn't change. else, value becomes 'owner'.
+        *nb_own_ptr = old_own ^ ((old_own ^ owner) & capture_mask);
+
+        // 7. Update Scores
+        // Calculate the value transferred (0 if no capture)
+        let val_change = (old_val & capture_mask) as i16;
+
+        // ATTACKER (You):
+        // Add 1 if reinforcement (is_me).
+        // Add val_change if capture. 
+        // (Note: is_me and is_capture are mutually exclusive, so we can just add both)
+        let attacker_delta = (is_me as i16) + val_change;
+        let def_idx = if is_capture { (old_own - 1) as usize } else { my_idx };
+        
+        
+        players[(owner - 1) as usize].score = (players[(owner - 1) as usize].score as i16 + attacker_delta) as usize;
+        players[(def_idx) as usize].score = (players[(def_idx) as usize].score as i16 + attacker_delta) as usize;
+    }
+} // index already verified (if n < 0 || n >= GRID_ISIZE)
+        // for (p, d) in players.iter_mut().zip(score_deltas) {
+        //     p.score += d as usize 
+        // }
+
     }
 
-    pub(crate) fn update_adjacency(&mut self, location: usize, add: bool) {
+    pub(crate) const fn update_adjacency(&mut self, location: usize, add: bool) {
         self.adjacency[location] = add
     }
 }
