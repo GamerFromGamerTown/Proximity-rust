@@ -1,9 +1,9 @@
-use pyo3::prelude::*;
+use pyo3::{pymodule};
 
 /// A Python module implemented in Rust.
 #[pymodule]
 mod pyoxide {
-    use pyo3::prelude::*;
+    use pyo3::{pyfunction, PyResult};
 
     /// Formats the sum of two numbers as string.
     #[pyfunction]
