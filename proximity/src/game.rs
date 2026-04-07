@@ -1,11 +1,10 @@
 use arrayvec::ArrayVec;
 use colored::{ColoredString, Colorize};
 use pyo3::{pymethods, pyclass};
-use rand::Rng;
-use rand::{prelude::IndexedRandom, rng};
+use rand::{Rng, rng, SeedableRng, prelude::IndexedRandom};
 use std::io::{self};
 use std::time::Instant;
-use memchr::memchr;
+// use memchr::memchr;
 
 use crate::constants::{
     ADD_TILE_CHECK, COLORS, GRID_SIZE, PLAYER_NUMBER, ROLL_MAX, TWO_POW_32, X_MAX, Y_MAX, location_to_x, location_to_y, player_movetypes, xy_to_location
@@ -70,8 +69,7 @@ impl Game {
     }
 
     pub(crate) fn game_loop(&mut self) {
-        let mut rng: SmallRng = rand::make_rng();
-        
+        let mut rng: SmallRng = SmallRng::from_rng(&mut rand::rng());        
         loop {
             for p in self.players.into_iter() {
                 if !self.grid.is_terminal() {
@@ -103,7 +101,7 @@ impl Game {
 
     fn get_winner(&self) -> u8 {
         let winner = self
-            .get_scores()
+            .get_scores(true)
             .iter()
             .enumerate()
             .max_by_key(|(_, score)| *score)
