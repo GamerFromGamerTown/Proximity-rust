@@ -22,6 +22,7 @@ pub const P2MOVETYPE: u8 = 3;
 pub const P3MOVETYPE: u8 = 1;
 pub const P4MOVETYPE: u8 = 1;
 pub const P5MOVETYPE: u8 = 1;
+pub const ADD_TILE_CHECK: bool = true;
 
 pub const PLAYER_MOVETYPES: [u8; PLAYER_MAX] =
     [P1MOVETYPE, P2MOVETYPE, P3MOVETYPE, P4MOVETYPE, P5MOVETYPE];
