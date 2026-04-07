@@ -1,8 +1,9 @@
-use arrayvec::ArrayVec;
+#![allow(unused)]
 use std::sync::OnceLock;
 
 // ============== COMPILE-TIME CONSTANTS (unchanged for backward compatibility) ==============
-pub const RECORD_WINLOSS: bool = true;
+
+pub const ADD_TILE_CHECK: bool = false;
 pub const SIMULATION_MAX: u32 = 5000;
 pub const TWO_POW_32: u64 = 4294967296;
 pub const X_MAX: usize = 10;
@@ -27,7 +28,7 @@ pub const PLAYER_MOVETYPES: [u8; PLAYER_MAX] =
     [P1MOVETYPE, P2MOVETYPE, P3MOVETYPE, P4MOVETYPE, P5MOVETYPE];
 
 pub const COLORS: [&str; PLAYER_MAX + 1] = ["white", "blue", "red", "green", "magenta", "yellow"];
-pub const COLOR_CODES: [&str; PLAYER_MAX + 1] = ["err", "B", "R", "G", "P", "Y"];
+// pub const COLOR_CODES: [&str; PLAYER_MAX + 1] = ["err", "B", "R", "G", "P", "Y"];
 
 pub const EVEN_OFFSETS: [isize; 6] = [
     1,                     // Right
@@ -105,32 +106,6 @@ pub fn init_config_from_args() {
                     config.simulation_max = args[i].parse().unwrap_or(SIMULATION_MAX);
                 }
             }
-            // "--x-max" | "-x" => {
-            //     i += 1;
-            //     if i < args.len() {
-            //         let val: usize = args[i].parse().unwrap_or(X_MAX);
-            //         if val > X_MAX {
-            //             eprintln!(
-            //                 "Warning: x-max {} exceeds compile-time X_MAX {}, clamping",
-            //                 val, X_MAX
-            //             );
-            //         }
-            //         config.x_max = val.min(X_MAX);
-            //     }
-            // }
-            // "--y-max" | "-y" => {
-            //     i += 1;
-            //     if i < args.len() {
-            //         let val: usize = args[i].parse().unwrap_or(Y_MAX);
-            //         if val > Y_MAX {
-            //             eprintln!(
-            //                 "Warning: y-max {} exceeds compile-time Y_MAX {}, clamping",
-            //                 val, Y_MAX
-            //             );
-            //         }
-            //         config.y_max = val.min(Y_MAX);
-            //     }
-            // }
             "--roll-max" | "-r" => {
                 i += 1;
                 if i < args.len() {
@@ -241,11 +216,6 @@ fn print_help() {
     println!("  1  Random        Random valid move.");
     println!("  2  Greedy        Highest-scoring move.");
     println!("  3  Monte Carlo   Monte Carlo flat search.");
-}
-
-/// Initialize with a custom config
-pub fn init_config(config: Config) {
-    let _ = CONFIG.set(config);
 }
 
 /// Get the current config (initializes to defaults if not set)
