@@ -30,5 +30,5 @@ fn main() {
     let mut game = Game::new();
     
     game.game_loop();
-    println!("{:?}", game.get_scores())
+    println!("{:?}", game.get_scores(false))
 }
