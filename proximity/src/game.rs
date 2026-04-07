@@ -1,15 +1,16 @@
 use arrayvec::ArrayVec;
 use colored::{ColoredString, Colorize};
-use pyo3::prelude::*;
+use pyo3::{pymethods, pyclass};
 use rand::Rng;
 use rand::{prelude::IndexedRandom, rng};
-use rayon::prelude::*;
 use std::io::{self};
 use std::time::Instant;
+use memchr::memchr;
 
 use crate::constants::{
-    COLORS, GRID_SIZE, PLAYER_MOVETYPES, PLAYER_NUMBER, RECORD_WINLOSS, SIMULATION_MAX, TWO_POW_32, X_MAX, Y_MAX, location_to_x, location_to_xy, location_to_y, player_movetypes, xy_to_location
+    ADD_TILE_CHECK, COLORS, GRID_SIZE, PLAYER_NUMBER, ROLL_MAX, TWO_POW_32, X_MAX, Y_MAX, location_to_x, location_to_y, player_movetypes, xy_to_location
 };
+
 use crate::grid::Grid;
 use crate::player::Player;
 
@@ -21,18 +22,20 @@ struct MoveInfo {
 }
 
 #[derive(Clone)]
-#[pyclass]
+// #[pyclass]
 pub(crate) struct Game {
     grid: Grid,
     players: [Player; PLAYER_NUMBER],
     moves: usize,
     start_time: Instant,
+    absolute_turn: usize,
 }
 
 impl Game {
     pub(crate) fn new() -> Self {
         let p: [Player; PLAYER_NUMBER] =
-            std::array::from_fn(|pnum| Player::init((pnum + 1) as u8, player_movetypes()[pnum]));
+            std::array::from_fn(|pnum| 
+                Player::init((pnum + 1) as u8, player_movetypes()[pnum]));
 
         Self {
             grid: Grid::init(),
@@ -40,6 +43,7 @@ impl Game {
 
             moves: 0,
             start_time: Instant::now(),
+            absolute_turn: 0
         }
     }
 
@@ -47,21 +51,10 @@ impl Game {
         taken && owner == 0
     }
 
-    fn test_eval(&self, playerid: u8, location: usize) -> [bool; 1000000] {
-        let max: usize = 1000000;
-        let mut moves = [false; 1000000];
-        let step: usize = 100;
-        let player = self.players[playerid as usize];
-
-        for x in 0..max {
-            moves[x] = (self.clone().run_single_rollout(player) == player.id)
-        }
-
-        return moves
-    }
-    fn simulation_loop(&mut self, starting_player: Player) -> u8 {
+    fn simulation_loop(&mut self, starting_player: Player, mut rng: &mut SmallRng) -> u8 {
         let mut current_idx: usize = (starting_player.id as usize) - 1;
-        let mut rng = rng();
+        
+        let mut rng2 = rand::rng();
         loop {
             if self.grid.is_terminal() {
                 break;
@@ -70,17 +63,19 @@ impl Game {
             current_idx = (current_idx + 1) % PLAYER_NUMBER;
 
             let current_player = self.players[current_idx];
-            self.make_random_move(current_player, &mut rng);
+            self.make_random_move(current_player, &mut rng2);
         }
 
         self.get_winner()
     }
 
     pub(crate) fn game_loop(&mut self) {
+        let mut rng: SmallRng = rand::make_rng();
+        
         loop {
             for p in self.players.into_iter() {
                 if !self.grid.is_terminal() {
-                    self.make_move(p);
+                    self.make_move(p, &mut rng);
                 } else {
                     break;
                 }
@@ -92,19 +87,18 @@ impl Game {
     }
 
     // scoring / winning
-    pub(crate) fn get_scores(&self) -> [usize; PLAYER_NUMBER] {
-        let mut scores: [usize; PLAYER_NUMBER] = [0usize; PLAYER_NUMBER];
-
-        for player_number in 1..=PLAYER_NUMBER {
-            let mut pscore: usize = 0;
-            for (location, o) in self.grid.owners.iter().enumerate() {
-                if *o == player_number as u8 {
-                    pscore += self.grid.values[location] as usize;
-                }
-            }
-            scores[player_number - 1] = pscore;
+    pub(crate) fn get_scores(&self, from_score: bool) -> [usize; PLAYER_NUMBER] {
+        if from_score {
+            std::array::from_fn(|i| self.players[i].score)
         }
-        scores
+        else {
+            self.grid.values
+            .iter()
+            .zip(self.grid.owners.iter());
+            
+            [1, 1]
+
+        }
     }
 
     fn get_winner(&self) -> u8 {
@@ -117,9 +111,37 @@ impl Game {
             .unwrap();
         (winner + 1) as u8
     }
+
+    // #[inline(never)] // TEMP BENCHMARK FIXME
+    fn remove_valid_tile(&mut self, location: usize) {
+        let idx = self.grid
+            .valid_moves
+            .iter()
+            .position(|&x | x == location) // unlikely
+            .expect("valid moves must have position");
+        self.grid.valid_moves.swap_remove(idx); 
+    }    // the real binary search was the friends we made along the way
+
+    fn add(&mut self, value: u8, owner: u8, location: usize) {
+        if ADD_TILE_CHECK && self.grid.takens[location] {
+                panic!("Chose taken tile.");
+            }
+        self.grid.values[location] = value;
+        self.grid.owners[location] = owner;
+        self.grid.takens[location] = true;
+
+        self.remove_valid_tile(location);
+
+        self.grid.update_neighbors(value, owner, location, &mut self.players);
+        // another third is in update_neighbors
+
+        self.players[(owner - 1) as usize].turn += 1;
+        self.players[(owner - 1) as usize].score += value as usize;
+        self.grid.turn += 1;
+    }
+
 }
 
 include!("moves.rs");
 include!("monte_carlo.rs");
-include!("game_py.rs");
 include!("display.rs");
