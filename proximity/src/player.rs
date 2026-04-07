@@ -1,6 +1,6 @@
 use rand::{rng, seq::SliceRandom};
 
-use crate::constants::{NUMBANK_SIZE, PLAYER_MOVETYPES, ROLL_MAX, roll_max};
+use crate::constants::{NUMBANK_SIZE, roll_max};
 
 #[derive(Clone, Copy)]
 pub(crate) struct Player {
@@ -30,7 +30,7 @@ impl Player {
     }
 
     pub(crate) const fn roll(&self) -> u8 {
-        // make const
         self.numbank[self.turn]
     }
+
 }
