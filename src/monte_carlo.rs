@@ -14,7 +14,7 @@ impl Game {
 
         let ptr = moves_info.as_mut_ptr() as usize;
 
-        moves.iter().for_each(|tile| {
+        moves.par_iter().for_each(|tile| {
             let (current_wins, current_total) = self.evaluate(player, *tile, None, rng);
 
             unsafe {
