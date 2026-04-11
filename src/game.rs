@@ -85,23 +85,14 @@ impl Game {
     }
 
     // scoring / winning
-    pub(crate) fn get_scores(&self, from_score: bool) -> [usize; PLAYER_NUMBER] {
-        if from_score {
-            std::array::from_fn(|i| self.players[i].score)
-        }
-        else {
-            self.grid.values
-            .iter()
-            .zip(self.grid.owners.iter());
-            
-            [1, 1]
+    pub(crate) fn get_scores(&self) -> [usize; PLAYER_NUMBER] {
+        std::array::from_fn(|i| self.players[i].score)
 
-        }
     }
 
     fn get_winner(&self) -> u8 {
         let winner = self
-            .get_scores(true)
+            .get_scores()
             .iter()
             .enumerate()
             .max_by_key(|(_, score)| *score)
