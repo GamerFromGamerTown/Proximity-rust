@@ -15,7 +15,8 @@ impl Game {
         let ptr = moves_info.as_mut_ptr() as usize;
 
         moves.par_iter().for_each(|tile| {
-            let (current_wins, current_total) = self.evaluate(player, *tile, None, rng);
+            let mut local_rng = SmallRng::from_rng(&mut rand::rng());
+            let (current_wins, current_total) = self.evaluate(player, *tile, None, &mut local_rng);
 
             unsafe {
                 // evil multithreading
