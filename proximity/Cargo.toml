@@ -10,10 +10,10 @@ colored = "3.1.1"
 csv = "1.4.0"
 rayon = "1.11.0"
 arrayvec = "0.7.6"
-pyo3 = "0.27.2"
+pyo3 = "0.28.3"
 
 [lib]
-name = "proximity"
+name = "proximitylib"
 crate-type = ["cdylib"]
 
 [[bin]]
